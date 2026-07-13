@@ -37,13 +37,9 @@
   scripts.clear.exec = ": > local.properties";
 
   enterShell = ''
+    export NIXPKGS_ALLOW_UNFREE=1
     export PATH="$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/build-tools/34.0.0:$PATH"
 
-    # 4. Ensure build-tools are installed in the writable directory
-    if [ ! -d "$ANDROID_SDK_ROOT/build-tools/33.0.1" ]; then
-      echo "🔧 Installing build-tools 33.0.1 to $ANDROID_SDK_ROOT..."
-      yes | sdkmanager --licenses || true
-      sdkmanager "build-tools;33.0.1"
-    fi
+
   '';
 }

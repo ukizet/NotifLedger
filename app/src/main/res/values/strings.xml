@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NotifLedger</string>
+    <string name="quick_add">Quick add</string>
+    <string name="parser_rules">Parser rules</string>
+    <string name="categorization_rules">Categorization rules</string>
+    <string name="raw_journal">Raw journal</string>
+    <string name="settings">Settings</string>
+    <string name="default_account">Default payment account</string>
+    <string name="edit">Edit</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="amount">Amount</string>
+    <string name="payee">Payee</string>
+    <string name="account">Account</string>
+    <string name="date">Date</string>
+    <string name="currency">Currency</string>
+    <string name="description">Description</string>
+    <string name="journal_path">Journal file path</string>
+    <string name="select_journal">Select a journal file or directory</string>
+    <string name="no_journal_selected">No journal selected. Tap to choose.</string>
+    <string name="no_transactions">No transactions yet.</string>
+    <string name="notification_capture">Notification capture</string>
+    <string name="notification_sources">Notification sources</string>
+    <string name="add_source">Add source app</string>
+    <string name="notif_listener_disabled">Notification listener is not enabled in system settings.</string>
+</resources>
