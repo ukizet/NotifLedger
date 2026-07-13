@@ -5,7 +5,6 @@ import android.net.Uri
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.notifledger.app.settings.SettingsManager
-import java.io.File
 
 class NotifLedgerApp : Application() {
 
@@ -23,13 +22,6 @@ class NotifLedgerApp : Application() {
             try { settings.journalPath.first().takeIf { it.isNotBlank() } } catch (_: Exception) { null }
         } ?: return null
         return try { Uri.parse(path) } catch (_: Exception) { null }
-    }
-
-    /** Used by NotifListener to get the rules directory. */
-    fun getRulesDir(): File? {
-        val dir = File(filesDir, "rules")
-        dir.mkdirs()
-        return dir
     }
 
     /** Used by NotifListener to get the default payment account. */

@@ -1,9 +1,7 @@
 package org.notifledger.app.ui
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -42,8 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.Bot
-import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
@@ -60,12 +58,13 @@ fun MainScreen(
     viewModel: MainViewModel,
     onNavigateToQuickAdd: () -> Unit,
     onNavigateToRawJournal: () -> Unit,
-    onNavigateToParserRules: () -> Unit,
     onNavigateToCategorizationRules: () -> Unit,
+    onNavigateToNotificationSources: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
     val entries by viewModel.entries.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
+    val notificationSources by viewModel.notificationSources.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -101,14 +100,14 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    IconButton(onClick = onNavigateToParserRules) {
-                        Icon(Lucide.FileText, contentDescription = "Parser rules")
-                    }
                     IconButton(onClick = onNavigateToCategorizationRules) {
                         Icon(Lucide.Tags, contentDescription = "Categorization rules")
                     }
                     IconButton(onClick = onNavigateToRawJournal) {
                         Icon(Lucide.List, contentDescription = "Raw journal")
+                    }
+                    IconButton(onClick = onNavigateToNotificationSources) {
+                        Icon(Lucide.Bell, contentDescription = "Notification sources")
                     }
                     IconButton(onClick = { showSimulateDialog = true }) {
                         Icon(Lucide.Bot, contentDescription = "Test notification")
@@ -223,7 +222,6 @@ private fun SimulateNotificationDialog(
 ) {
     var title by remember { mutableStateOf("") }
     var text by remember { mutableStateOf("") }
-    var packageName by remember { mutableStateOf("") }
     var resultMessage by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -232,18 +230,9 @@ private fun SimulateNotificationDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Paste what a bank notification looks like, and the app will parse it using your rules.",
+                    text = "Paste a notification. The app will find the first number as the amount and use the title as the payee.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = packageName,
-                    onValueChange = { packageName = it },
-                    label = { Text("Source app (package)") },
-                    placeholder = { Text("e.g. no.dnb.mobil") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
@@ -273,7 +262,6 @@ private fun SimulateNotificationDialog(
             OutlinedButton(
                 onClick = {
                     resultMessage = viewModel.simulateNotification(
-                        packageName = packageName.trim(),
                         title = title.trim(),
                         text = text.trim(),
                     )

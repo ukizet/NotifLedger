@@ -16,8 +16,8 @@ fun NotifLedgerNavGraph(
                 viewModel = viewModel,
                 onNavigateToQuickAdd = { navController.navigate(Screen.QuickAdd.route) },
                 onNavigateToRawJournal = { navController.navigate(Screen.RawJournal.route) },
-                onNavigateToParserRules = { navController.navigate(Screen.ParserRules.route) },
                 onNavigateToCategorizationRules = { navController.navigate(Screen.CategorizationRules.route) },
+                onNavigateToNotificationSources = { navController.navigate(Screen.NotificationSources.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
             )
         }
@@ -36,15 +36,15 @@ fun NotifLedgerNavGraph(
             )
         }
 
-        composable(Screen.ParserRules.route) {
-            ParserRulesScreen(
+        composable(Screen.CategorizationRules.route) {
+            CategorizationRulesScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
             )
         }
 
-        composable(Screen.CategorizationRules.route) {
-            CategorizationRulesScreen(
+        composable(Screen.NotificationSources.route) {
+            NotificationSourcesScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
             )

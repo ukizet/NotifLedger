@@ -6,11 +6,11 @@ package org.notifledger.app.ui
  */
 sealed class Screen(val route: String) {
     data object Main : Screen("main")
-    data object QuickAdd : Screen("quick_add")
-    data object RawJournal : Screen("raw_journal")
-    data object ParserRules : Screen("parser_rules")
-    data object CategorizationRules : Screen("categorization_rules")
-    data object Settings : Screen("settings")
+        data object QuickAdd : Screen("quick_add")
+        data object RawJournal : Screen("raw_journal")
+        data object CategorizationRules : Screen("categorization_rules")
+        data object NotificationSources : Screen("notification_sources")
+        data object Settings : Screen("settings")
 
 
 }

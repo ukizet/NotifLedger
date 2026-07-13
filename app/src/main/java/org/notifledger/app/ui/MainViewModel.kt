@@ -18,7 +18,6 @@ import kotlinx.coroutines.withContext
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.model.CategorizationRule
-import org.notifledger.app.model.ParserRule
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
 import org.notifledger.app.parser.ParserEngine
@@ -52,9 +51,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         sorted.take(limit.coerceAtLeast(1))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _parserRules = MutableStateFlow<List<ParserRule>>(emptyList())
-    val parserRules: StateFlow<List<ParserRule>> = _parserRules.asStateFlow()
-
     private val _categorizationRules = MutableStateFlow<List<CategorizationRule>>(emptyList())
     val categorizationRules: StateFlow<List<CategorizationRule>> = _categorizationRules.asStateFlow()
 
@@ -64,6 +60,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val journalPath = settings.journalPath.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), ""
+    )
+
+    val notificationSources = settings.notificationSources.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList()
     )
 
     init {
@@ -159,21 +159,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun simulateNotification(packageName: String, title: String, text: String): String {
-        val rulesDir = getRulesDir()
-        val rules = RuleIO.loadParserRules(rulesDir)
-        val rule = rules.find { it.appName.equals(packageName, ignoreCase = true) }
-            ?: rules.firstOrNull { title.contains(it.containsText, ignoreCase = true) || text.contains(it.containsText, ignoreCase = true) }
-
+    fun simulateNotification(title: String, text: String): String {
         val defaultAccount = runBlocking { settings.defaultAccount.first() }
 
-        if (rule == null) {
-            return "No matching parser rule found. Add one first."
-        }
-
-        val result = ParserEngine.parse(title, text, rule, "expenses:unknown", defaultAccount)
+        val result = ParserEngine.parse(title, text, "expenses:unknown", defaultAccount)
         if (result == null) {
-            return "Parser rule matched but couldn't extract data."
+            return "No number found in notification text."
         }
 
         viewModelScope.launch {
@@ -194,14 +185,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return dir
     }
 
-    fun saveParserRule(rule: ParserRule) {
-        viewModelScope.launch {
-            val rulesDir = getRulesDir()
-            RuleIO.saveParserRule(rulesDir, rule)
-            _parserRules.value = RuleIO.loadParserRules(rulesDir)
-        }
-    }
-
     fun saveCategorizationRules(rules: List<CategorizationRule>) {
         viewModelScope.launch {
             val rulesDir = getRulesDir()
@@ -210,6 +193,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun getCachedParserRules(): List<ParserRule> = _parserRules.value
     fun getCachedCategorizationRules(): List<CategorizationRule> = _categorizationRules.value
+
+    fun setNotificationSources(sources: List<String>) {
+        viewModelScope.launch { settings.setNotificationSources(sources) }
+    }
 }

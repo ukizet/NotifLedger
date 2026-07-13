@@ -2,7 +2,6 @@ package org.notifledger.app.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -250,44 +248,6 @@ fun SettingsScreen(
                                 Text("Change")
                             }
                         }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Notification listener status
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Notification capture", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(4.dp))
-                    val isEnabled = remember {
-                        val cn = context.packageName + "/.notification.NotifListener"
-                        Settings.Secure.getString(
-                            context.contentResolver,
-                            "enabled_notification_listeners",
-                        )?.contains(cn) == true
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = if (isEnabled) "Listener is active"
-                            else "Listener is disabled",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = {
-                                if (!isEnabled) {
-                                    context.startActivity(
-                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                    )
-                                }
-                            },
-                        )
                     }
                 }
             }
