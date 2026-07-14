@@ -13,12 +13,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +69,11 @@ fun MainScreen(
     val entries by viewModel.entries.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
     val notificationSources by viewModel.notificationSources.collectAsState()
+    val payeeSuggestions by viewModel.existingPayees.collectAsState()
+    val accountSuggestions by viewModel.existingAccounts.collectAsState()
+    val defaultCurrency by viewModel.defaultCurrency.collectAsState()
+    val currentSortOrder by viewModel.sortOrder.collectAsState()
+    val currentPageLimit by viewModel.pageLimit.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -143,16 +152,84 @@ fun MainScreen(
                 Text("No transactions yet. Add one with the + button.")
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                itemsIndexed(entries) { index, entry ->
-                    TransactionRow(
-                        entry = entry,
-                        onEdit = { editingIndex = index },
-                        onDelete = { deletingIndex = index },
-                    )
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // Sort + page limit controls
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    var sortExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = sortExpanded,
+                        onExpandedChange = { sortExpanded = it },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        OutlinedTextField(
+                            value = sortLabel(currentSortOrder),
+                            onValueChange = {},
+                            readOnly = true,
+                            singleLine = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sortExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                        )
+                        ExposedDropdownMenu(
+                            expanded = sortExpanded,
+                            onDismissRequest = { sortExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Newest first") },
+                                onClick = { viewModel.setSortOrder("newest_first"); sortExpanded = false },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Oldest first") },
+                                onClick = { viewModel.setSortOrder("oldest_first"); sortExpanded = false },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Highest amount first") },
+                                onClick = { viewModel.setSortOrder("highest_amount"); sortExpanded = false },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Lowest amount first") },
+                                onClick = { viewModel.setSortOrder("lowest_amount"); sortExpanded = false },
+                            )
+                        }
+                    }
+
+                    var editingLimit by remember { mutableStateOf(false) }
+                    if (editingLimit) {
+                        OutlinedTextField(
+                            value = currentPageLimit.toString(),
+                            onValueChange = { n ->
+                                val parsed = n.toIntOrNull()
+                                if (parsed != null && parsed > 0) viewModel.setPageLimit(parsed)
+                            },
+                            singleLine = true,
+                            modifier = Modifier.width(72.dp),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                        )
+                        TextButton(onClick = { editingLimit = false }) {
+                            Text("Done", style = MaterialTheme.typography.bodySmall)
+                        }
+                    } else {
+                        TextButton(onClick = { editingLimit = true }) {
+                            Text("${currentPageLimit} per page", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    itemsIndexed(entries) { index, entry ->
+                        TransactionRow(
+                            entry = entry,
+                            onEdit = { editingIndex = index },
+                            onDelete = { deletingIndex = index },
+                        )
+                    }
                 }
             }
         }
@@ -181,6 +258,9 @@ fun MainScreen(
             text = {
                 TransactionForm(
                     initial = tx,
+                    payeeSuggestions = payeeSuggestions,
+                    accountSuggestions = accountSuggestions,
+                    defaultCurrency = defaultCurrency,
                     onSave = { updated ->
                         viewModel.editTransaction(entry.lineOffset, updated)
                         editingIndex = -1
@@ -213,6 +293,14 @@ fun MainScreen(
             },
         )
     }
+}
+
+private fun sortLabel(key: String): String = when (key) {
+    "newest_first" -> "Newest first"
+    "oldest_first" -> "Oldest first"
+    "highest_amount" -> "Highest amount first"
+    "lowest_amount" -> "Lowest amount first"
+    else -> "Newest first"
 }
 
 @Composable

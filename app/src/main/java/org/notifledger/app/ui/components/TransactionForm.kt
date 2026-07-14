@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -32,24 +36,38 @@ import org.notifledger.app.model.Transaction
  * Used by: QuickAdd screen, Edit dialog from main list.
  *
  * Features a dynamic list of postings. Currency is shared across all postings.
+ *
+ * @param payeeSuggestions list of existing payee names for autocomplete dropdown.
+ * @param accountSuggestions list of existing account names for autocomplete dropdown.
+ * @param defaultCurrency default currency to use when no currency is set on the initial.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionForm(
     initial: Transaction,
     onSave: (Transaction) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    payeeSuggestions: List<String> = emptyList(),
+    accountSuggestions: List<String> = emptyList(),
+    defaultCurrency: String = "NOK",
 ) {
     var payee by remember { mutableStateOf(initial.payee) }
     var date by remember { mutableStateOf(initial.date) }
     var note by remember { mutableStateOf(initial.note) }
     var currency by remember {
-        mutableStateOf(initial.postings.firstOrNull()?.currency ?: "NOK")
+        mutableStateOf(initial.postings.firstOrNull()?.currency ?: defaultCurrency)
     }
     val postings = remember {
         mutableStateListOf<Posting>().apply {
-            if (initial.postings.isNotEmpty()) addAll(initial.postings)
-            else add(Posting(account = "", amount = "", currency = currency))
+            if (initial.postings.isNotEmpty()) {
+                // Strip negative amounts — auto-balance fills them on save
+                addAll(initial.postings.map { p ->
+                    if (p.amount.startsWith("-")) p.copy(amount = "") else p
+                })
+            } else {
+                add(Posting(account = "", amount = "", currency = currency))
+            }
         }
     }
 
@@ -69,13 +87,41 @@ fun TransactionForm(
 
         Spacer(Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = payee,
-            onValueChange = { payee = it },
-            label = { Text("Payee") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        var payeeExpanded by remember { mutableStateOf(false) }
+        val filteredPayees = remember(payee, payeeSuggestions) {
+            payeeSuggestions.filter { it.contains(payee, ignoreCase = true) }
+        }
+
+        ExposedDropdownMenuBox(
+            expanded = payeeExpanded && filteredPayees.isNotEmpty(),
+            onExpandedChange = { payeeExpanded = it },
+        ) {
+            OutlinedTextField(
+                value = payee,
+                onValueChange = {
+                    payee = it
+                    payeeExpanded = true
+                },
+                label = { Text("Payee") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payeeExpanded) },
+            )
+            ExposedDropdownMenu(
+                expanded = payeeExpanded && filteredPayees.isNotEmpty(),
+                onDismissRequest = { payeeExpanded = false },
+            ) {
+                filteredPayees.forEach { suggestion ->
+                    DropdownMenuItem(
+                        text = { Text(suggestion) },
+                        onClick = {
+                            payee = suggestion
+                            payeeExpanded = false
+                        },
+                    )
+                }
+            }
+        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -102,13 +148,12 @@ fun TransactionForm(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                OutlinedTextField(
+                AccountField(
                     value = posting.account,
                     onValueChange = { newAccount ->
                         postings[index] = posting.copy(account = newAccount)
                     },
-                    label = { Text("Account") },
-                    singleLine = true,
+                    suggestions = accountSuggestions,
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(

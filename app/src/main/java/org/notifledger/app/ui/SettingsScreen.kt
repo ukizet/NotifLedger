@@ -5,21 +5,16 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +31,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -51,9 +45,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val defaultAccount by viewModel.defaultAccount.collectAsState()
+    val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
-    val currentSortOrder by viewModel.sortOrder.collectAsState()
-    val currentPageLimit by viewModel.pageLimit.collectAsState()
 
     var editingAccount by remember { mutableStateOf(false) }
     var accountInput by remember { mutableStateOf("") }
@@ -156,97 +149,43 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Sort order
+            // Default currency
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Sort transactions", style = MaterialTheme.typography.titleSmall)
+                    Text("Default currency", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(4.dp))
-                    var sortExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = sortExpanded,
-                        onExpandedChange = { sortExpanded = !sortExpanded },
-                    ) {
+                    var editingCurrency by remember { mutableStateOf(false) }
+                    var currencyInput by remember { mutableStateOf("") }
+                    if (editingCurrency) {
                         OutlinedTextField(
-                            value = sortLabel(currentSortOrder),
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sortExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            value = currencyInput,
+                            onValueChange = { currencyInput = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                        ExposedDropdownMenu(
-                            expanded = sortExpanded,
-                            onDismissRequest = { sortExpanded = false },
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    viewModel.settings.setDefaultCurrency(currencyInput.trim())
+                                }
+                                editingCurrency = false
+                            },
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Newest first") },
-                                onClick = { viewModel.setSortOrder("newest_first"); sortExpanded = false },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Oldest first") },
-                                onClick = { viewModel.setSortOrder("oldest_first"); sortExpanded = false },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Highest amount first") },
-                                onClick = { viewModel.setSortOrder("highest_amount"); sortExpanded = false },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Lowest amount first") },
-                                onClick = { viewModel.setSortOrder("lowest_amount"); sortExpanded = false },
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Page limit
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Transactions per page", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(4.dp))
-                    var editingLimit by remember { mutableStateOf(false) }
-                    var limitInput by remember { mutableStateOf(currentPageLimit.toString()) }
-                    if (editingLimit) {
-                        Row {
-                            OutlinedTextField(
-                                value = limitInput,
-                                onValueChange = { limitInput = it },
-                                singleLine = true,
-                                modifier = Modifier.width(120.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    val n = limitInput.toIntOrNull()
-                                    if (n != null && n > 0) {
-                                        viewModel.setPageLimit(n)
-                                    }
-                                    editingLimit = false
-                                },
-                            ) {
-                                Text("Set")
-                            }
+                            Text("Save")
                         }
                     } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "$currentPageLimit entries",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(Modifier.weight(1f))
-                            OutlinedButton(onClick = {
-                                limitInput = currentPageLimit.toString()
-                                editingLimit = true
-                            }) {
-                                Text("Change")
-                            }
+                        Text(
+                            text = defaultCurrency,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        OutlinedButton(onClick = {
+                            currencyInput = defaultCurrency
+                            editingCurrency = true
+                        }) {
+                            Text("Change")
                         }
                     }
                 }

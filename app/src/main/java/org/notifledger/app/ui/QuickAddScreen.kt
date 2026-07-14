@@ -29,6 +29,9 @@ fun QuickAddScreen(
     onBack: () -> Unit,
 ) {
     val defaultAccount by viewModel.defaultAccount.collectAsState()
+    val defaultCurrency by viewModel.defaultCurrency.collectAsState()
+    val payeeSuggestions by viewModel.existingPayees.collectAsState()
+    val accountSuggestions by viewModel.existingAccounts.collectAsState()
 
     Scaffold(
         topBar = {
@@ -50,11 +53,14 @@ fun QuickAddScreen(
                 date = LocalDate.now().toString(),
                 payee = "",
                 postings = listOf(
-                    Posting(account = "expenses:unknown", amount = "", currency = "NOK"),
-                    Posting(account = defaultAccount, amount = "", currency = "NOK"),
+                    Posting(account = "expenses:unknown", amount = "", currency = defaultCurrency),
+                    Posting(account = defaultAccount, amount = "", currency = defaultCurrency),
                 ),
                 source = Source.Manual,
             ),
+            payeeSuggestions = payeeSuggestions,
+            accountSuggestions = accountSuggestions,
+            defaultCurrency = defaultCurrency,
             onSave = { tx ->
                 viewModel.addTransaction(tx)
                 onBack()

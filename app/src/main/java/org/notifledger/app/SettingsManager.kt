@@ -31,6 +31,12 @@ class SettingsManager(private val context: Context) {
             prefs[DEFAULT_ACCOUNT] ?: DEFAULT_ACCOUNT_VALUE
         }
 
+    /** The default currency for new transactions. */
+    val defaultCurrency: Flow<String>
+        get() = context.dataStore.data.map { prefs ->
+            prefs[DEFAULT_CURRENCY] ?: DEFAULT_CURRENCY_VALUE
+        }
+
     /** How to sort transactions on the main screen. */
     val sortOrder: Flow<String>
         get() = context.dataStore.data.map { prefs ->
@@ -62,6 +68,12 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setDefaultCurrency(currency: String) {
+        context.dataStore.edit { prefs ->
+            prefs[DEFAULT_CURRENCY] = currency
+        }
+    }
+
     suspend fun setSortOrder(order: String) {
         context.dataStore.edit { prefs ->
             prefs[SORT_ORDER] = order
@@ -83,10 +95,12 @@ class SettingsManager(private val context: Context) {
     companion object {
         private val JOURNAL_PATH = stringPreferencesKey("journal_path")
         private val DEFAULT_ACCOUNT = stringPreferencesKey("default_account")
+        private val DEFAULT_CURRENCY = stringPreferencesKey("default_currency")
         private val NOTIF_SOURCES = stringPreferencesKey("notification_sources")
         private val SORT_ORDER = stringPreferencesKey("sort_order")
         private val PAGE_LIMIT = intPreferencesKey("page_limit")
 
         private const val DEFAULT_ACCOUNT_VALUE = "assets:bank:checking"
+        private const val DEFAULT_CURRENCY_VALUE = "NOK"
     }
 }

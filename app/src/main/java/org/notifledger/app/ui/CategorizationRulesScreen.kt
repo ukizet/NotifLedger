@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.model.CategorizationRule
+import org.notifledger.app.ui.components.AccountField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +43,9 @@ fun CategorizationRulesScreen(
     onBack: () -> Unit,
 ) {
     val rules by viewModel.categorizationRules.collectAsState()
+    val accountSuggestions by viewModel.existingAccounts.collectAsState()
     var showAddForm by remember { mutableStateOf(false) }
+    var editingIndex by remember { mutableStateOf(-1) }
 
     Scaffold(
         topBar = {
@@ -67,16 +70,26 @@ fun CategorizationRulesScreen(
                 Spacer(Modifier.height(12.dp))
             }
 
-            if (showAddForm) {
+            if (showAddForm || editingIndex >= 0) {
+                val editingRule = if (editingIndex >= 0 && editingIndex < rules.size) rules[editingIndex] else null
                 CategorizationRuleForm(
+                    initial = editingRule,
+                    accountSuggestions = accountSuggestions,
                     onSave = { rule ->
-                        val updated = viewModel.getCachedCategorizationRules().toMutableList().apply {
-                            add(rule)
+                        val updated = viewModel.getCachedCategorizationRules().toMutableList()
+                        if (editingRule != null && editingIndex in updated.indices) {
+                            updated[editingIndex] = rule
+                        } else {
+                            updated.add(rule)
                         }
                         viewModel.saveCategorizationRules(updated)
                         showAddForm = false
+                        editingIndex = -1
                     },
-                    onCancel = { showAddForm = false },
+                    onCancel = {
+                        showAddForm = false
+                        editingIndex = -1
+                    },
                 )
                 Spacer(Modifier.height(12.dp))
             }
@@ -105,6 +118,12 @@ fun CategorizationRulesScreen(
                                 )
                             }
                             TextButton(onClick = {
+                                editingIndex = index
+                                showAddForm = false
+                            }) {
+                                Text("Edit")
+                            }
+                            TextButton(onClick = {
                                 val updated = viewModel.getCachedCategorizationRules().toMutableList()
                                 if (index in updated.indices) {
                                     updated.removeAt(index)
@@ -123,11 +142,13 @@ fun CategorizationRulesScreen(
 
 @Composable
 private fun CategorizationRuleForm(
+    initial: CategorizationRule? = null,
+    accountSuggestions: List<String> = emptyList(),
     onSave: (CategorizationRule) -> Unit,
     onCancel: () -> Unit,
 ) {
-    var match by remember { mutableStateOf("") }
-    var account by remember { mutableStateOf("") }
+    var match by remember { mutableStateOf(initial?.match ?: "") }
+    var account by remember { mutableStateOf(initial?.account ?: "") }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -139,12 +160,10 @@ private fun CategorizationRuleForm(
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
+        AccountField(
             value = account,
             onValueChange = { account = it },
-            label = { Text("Account") },
-            placeholder = { Text("e.g. expenses:groceries") },
-            singleLine = true,
+            suggestions = accountSuggestions,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))

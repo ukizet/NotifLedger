@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -29,6 +30,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val settings = SettingsManager(application)
 
     private val _allEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
+
+    val existingPayees: StateFlow<List<String>> = _allEntries.map { entries ->
+        entries.map { it.payee }.filter { it.isNotBlank() }.distinct().sorted()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val existingAccounts: StateFlow<List<String>> = _allEntries.map { entries ->
+        entries.flatMap { it.postings.map { p -> p.account } }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _sortOrder = MutableStateFlow("newest_first")
     val sortOrder: StateFlow<String> = _sortOrder.asStateFlow()
@@ -60,6 +72,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val journalPath = settings.journalPath.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), ""
+    )
+
+    val defaultCurrency = settings.defaultCurrency.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), "NOK"
     )
 
     val notificationSources = settings.notificationSources.stateIn(
