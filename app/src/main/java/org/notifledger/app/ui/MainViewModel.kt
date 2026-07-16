@@ -101,6 +101,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        viewModelScope.launch {
+            val rulesDir = getRulesDir()
+            _categorizationRules.value = RuleIO.loadCategorizationRules(rulesDir)
+        }
     }
 
     private suspend fun readJournalContent(uriString: String): String = withContext(Dispatchers.IO) {

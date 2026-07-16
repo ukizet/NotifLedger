@@ -70,14 +70,16 @@ class NotifListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         Log.d(TAG, "Notification listener connected")
+        NotificationHelper.showListeningNotification(this)
     }
 
     override fun onListenerDisconnected() {
         Log.d(TAG, "Notification listener disconnected")
+        NotificationHelper.hideListeningNotification(this)
     }
 
     companion object {
-        private const val TAG = "NotifListener"
+        private const val TAG = "NotifLedger"
         private const val EXTRA_TITLE = "android.title"
         private const val EXTRA_TEXT = "android.text"
     }
