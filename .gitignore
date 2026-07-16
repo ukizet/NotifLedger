@@ -7,6 +7,4 @@ build
 .android
 .devenv
 
-docs
-
 local.properties

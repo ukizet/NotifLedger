@@ -1,0 +1,8 @@
+# Example: DNB (Norwegian bank)
+# Notification looks like: "Betalt 184.50 kr hos Rema 1000"
+app: DNB
+contains: Betalt
+amount: first_number
+payee: before_amount
+currency: NOK
+direction: outflow

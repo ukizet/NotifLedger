@@ -1,0 +1,374 @@
+2026-02-21  init
+    expenses:groceries                                             3 NOK
+    assets:banks:DNB                                              -1 NOK
+    assets:cash                                                   -1 NOK
+    income:norsk-payment                                          -1 NOK
+
+2026-02-21 groceries
+    expenses:groceries                                          36.2 NOK
+    assets:banks:DNB
+
+2026-02-21 Proteinbar and melatonin 
+    expenses:health                                             61.4 NOK
+    expenses:groceries                                          24.9 NOK
+    assets:banks:DNB
+
+2026-02-24 groceries
+    expenses:groceries                                            26 NOK
+    assets:banks:DNB
+
+2026-02-24 groceries
+    expenses:groceries                                        211.28 NOK
+    assets:banks:DNB
+
+2026-02-26 groceries
+    expenses:groceries                                           9.9 NOK
+    assets:banks:DNB
+
+2026-02-26 groceries
+    expenses:groceries                                          49.7 NOK
+    assets:banks:DNB
+
+2026-03-02 Payment
+    assets:banks:DNB                                         2091.45 NOK
+    income:norsk-payment
+
+2026-03-02 groceries
+    expenses:groceries                                        842.85 NOK
+    assets:banks:DNB
+
+2026-03-05 groceries
+    expenses:groceries                                          42.9 NOK
+    assets:banks:DNB
+
+2026-03-07 groceries
+    expenses:groceries                                        395.81 NOK
+    assets:banks:DNB
+
+2026-03-09 groceries
+    expenses:groceries                                            55 NOK
+    assets:banks:DNB
+
+2026-03-09 groceries
+    expenses:groceries                                         62.55 NOK
+    assets:banks:DNB
+
+2026-03-10  groceries
+    expenses:snack                                              46.7 NOK
+    assets:banks:DNB
+
+2026-03-11 groceries
+    expenses:groceries                                         61.96 NOK
+    assets:banks:DNB
+
+2026-03-14 groceries
+    expenses:groceries                                        130.95 NOK
+    assets:banks:DNB
+
+2026-03-14 groceries
+    expenses:groceries                                          82.9 NOK
+    assets:cash                                                  500 NOK
+    assets:banks:DNB
+
+2026-03-16 Income
+    assets:banks:DNB                                         2230.88 NOK
+    income:norsk-payment
+
+2026-03-16  groceries
+    expenses:groceries                                         222.2 NOK
+    assets:cash                                                  500 NOK
+    assets:banks:DNB
+
+2026-03-16 ticketmaster gavekort
+    expenses                                                    1000 NOK
+    assets:cash
+
+2026-03-17 groceries
+    expenses:snack                                              11.4 NOK
+    assets:banks:DNB
+
+2026-03-19 groceries
+    expenses:groceries                                         255.1 NOK
+    assets:banks:DNB
+
+2026-03-23  groceries
+    expenses:groceries                                        719.03 NOK
+    assets:banks:DNB
+
+2026-03-23 sim card | sim card
+    expenses                                                     199 NOK
+    assets:banks:DNB
+
+2026-03-27 groceries
+    expenses:snack                                             39.05 NOK
+    assets:banks:DNB
+
+2026-03-27 groceries
+    expenses:groceries                                          94.1 NOK
+    assets:banks:DNB
+
+2026-03-28 groceries
+    expenses:groceries                                         22.13 NOK
+    assets:banks:DNB
+
+2026-03-31 Payment
+    assets:banks:DNB                                         2091.45 NOK
+    income:norsk-payment
+
+2026-03-31 groceries
+    expenses:groceries                                        763.44 NOK
+    assets:banks:DNB
+
+2026-04-01 groceries
+    expenses:groceries                                            89 NOK
+    assets:banks:DNB
+
+2026-04-04 groceries
+    expenses:groceries                                        195.76 NOK
+    assets:banks:DNB
+
+2026-04-08 groceries
+    expenses:groceries                                        357.48 NOK
+    assets:banks:DNB
+
+2026-04-10 groceries
+    expenses:groceries                                         212.5 NOK
+    assets:banks:DNB
+
+2026-04-13 groceries
+    expenses:groceries                                          39.8 NOK
+    assets:banks:DNB
+
+2026-04-13  lege
+    expenses:health                                              179 NOK
+    assets:banks:DNB
+
+2026-04-13 health
+    expenses:health                                            446.2 NOK
+    assets:banks:DNB
+
+2026-04-14 groceries
+    expenses:groceries                                            75 NOK
+    assets:banks:DNB
+
+2026-04-15 groceries
+    expenses:groceries                                         55.22 NOK
+    assets:banks:DNB
+
+2026-04-16 Income
+    assets:banks:DNB                                         2091.45 NOK
+    income:norsk-payment
+
+2026-04-16 groceries
+    expenses:groceries                                        420.81 NOK
+    assets:banks:DNB
+
+2026-04-22 groceries
+    expenses:snack                                              18.1 NOK
+    assets:banks:DNB
+
+2026-04-22 groceries
+    expenses:groceries                                          39.9 NOK
+    assets:banks:DNB
+
+2026-04-23 telia top up
+    expenses                                                     100 NOK
+    assets:cash
+
+2026-05-04 mop
+    expenses:household:cleaning                                229.9 NOK
+    assets:banks:DNB
+
+2026-04-28 Income
+    assets:banks:DNB                                            3846 NOK
+    income:norsk-payment
+
+2026-04-29 Idk/don't remember what I spend this money on
+    expenses:groceries                                        1037.3 NOK
+    assets:banks:DNB
+
+2026-04-29 groceries
+    expenses:groceries                                          69.2 NOK
+    assets:banks:DNB
+
+2026-04-30 Income
+    assets:banks:DNB                                            4150 NOK
+    income:norsk-payment
+
+2026-04-30 snack
+    expenses:snack                                              24.9 NOK
+    assets:banks:DNB
+
+2026-04-29 Idk/don't remember what I spend this money on
+    expenses                                                  1037.3 NOK
+    assets:banks:DNB
+
+2026-04-30 groceries
+    expenses:groceries                                        267.99 NOK
+    assets:banks:DNB
+
+2026-05-01 snack
+    expenses:snack                                                85 NOK
+    assets:banks:DNB
+
+2026-05-02 Idk/don't remember what I spend this money on
+    expenses                                                   765.8 NOK
+    assets:banks:DNB
+
+2026-05-03 snack
+    expenses:snack                                               355 NOK
+    assets:banks:DNB
+
+2026-05-04 snack
+    expenses:snack                                              74.8 NOK
+    assets:banks:DNB
+
+2026-05-05 dishcloth and dishcloth hanger
+    expenses:household                                            70 NOK
+    assets:banks:DNB
+
+2026-05-05 groceries
+    expenses:groceries                                          25.9 NOK
+    assets:banks:DNB
+
+2026-05-05 snack
+    expenses:snack                                                14 NOK
+    assets:cash                                                  200 NOK
+    assets:banks:DNB
+
+2026-05-06 groceries
+    expenses:groceries                                        238.55 NOK
+    assets:banks:DNB
+
+2026-05-07
+    expenses:groceries                                             124.9
+    assets:banks:DNB
+
+2026-05-07
+    assets:banks:DNB                                            5138 NOK
+    income:norsk-payment
+
+2026-05-07
+    expenses:groceries                                           359 NOK
+    assets:banks:DNB
+
+2026-05-08
+    expenses                                                 1248.44 NOK
+    assets:banks:DNB
+
+2026-05-09
+    expenses:groceries                                         100.6 NOK
+    assets:banks:DNB
+
+2026-05-11
+    expenses:snack                                                29 NOK
+    assets:banks:DNB
+
+2026-05-11
+    expenses:music:equipment                                    2195 NOK
+    assets:banks:DNB
+
+2026-05-11
+    expenses:snack                                              33.5 NOK
+    assets:banks:DNB
+
+2026-05-11
+    expenses:groceries                                         105.5 NOK
+    assets:banks:DNB
+
+2026-05-12
+    expenses:snack                                              26.9 NOK
+    assets:banks:DNB
+
+2026-05-13
+    assets:banks:DNB                                            4150 NOK
+    income:norsk-payment
+
+2026-05-13
+    expenses:snack                                              26.5 NOK
+    assets:banks:DNB
+
+2026-05-13
+    expenses:groceries                                        239.42 NOK
+    assets:banks:DNB
+
+2026-05-15
+    expenses                                                   352.8 NOK
+    assets:banks:DNB
+
+2026-05-15 CMF Watch 3 Pro
+    expenses:electronics                                        1290 NOK
+    assets:banks:DNB
+
+2026-05-16
+    expenses                                                     203 NOK
+    assets:banks:DNB
+
+2026-05-17 I was in Oslo, on the sytten mai
+    expenses                                                   125.8 NOK
+    assets:banks:DNB
+
+2026-05-18
+    expenses                                                    20.4 NOK
+    assets:banks:DNB
+
+2026-05-19 headphones audiotechnica ath m50x
+    expenses:music:equipment                                  2228.4 NOK
+    assets:banks:DNB
+
+2026-05-20
+    expenses                                                    87.9 NOK
+    assets:banks:DNB
+
+2026-05-20 bought big ass table
+    expenses:furniture                                           501 NOK
+    assets:banks:DNB
+
+2026-05-21
+    expenses:groceries                                        274.24 NOK
+    assets:banks:DNB
+
+2026-05-26  vacuum cleaner bag
+    expenses:household                                         129.9 NOK
+    assets:banks:DNB
+
+2026-05-26
+    expenses:snack                                                29 NOK
+    assets:banks:DNB
+
+2026-05-26
+    expenses:groceries                                        185.56 NOK
+    assets:banks:DNB
+
+2026-05-28
+    expenses:snack                                              24.9 NOK
+    assets:banks:DNB
+
+2026-05-29
+    expenses:snack                                              28.9 NOK
+    assets:banks:DNB
+
+2026-06-11 bus card top up
+    expenses                                                     330 NOK
+    assets:banks:DNB
+
+2026-06-15
+    expenses:monthly:gym                                         850 NOK
+    assets:banks:DNB
+
+2026-06-15
+    expenses:groceries                                         155.7 NOK
+    assets:banks:DNB
+
+2026-06-25 creatine 500g self omninutrition
+    expenses                                                     189 NOK
+    assets:banks:DNB
+
+2026-06-26
+    expenses:cigarettes                                          187 NOK
+    assets:banks:DNB
+
+2026-07-01 protein
+    expenses                                                     599 NOK
+    assets:banks:DNB
+

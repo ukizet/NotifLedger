@@ -1,0 +1,9 @@
+# Example: Klarna
+# Notification looks like: "Purchase at Spotify for 129.00 SEK"
+app: Klarna
+contains: Purchase
+amount: first_number
+payee: after_text
+amount_prefix: at
+currency: SEK
+direction: outflow

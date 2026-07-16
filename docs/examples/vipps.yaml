@@ -1,0 +1,9 @@
+# Example: Vipps (Norwegian payment app)
+# Notification looks like: "Vipps fra Ola Nordmann på 200 kr"
+app: Vipps
+contains: Vipps
+amount: last_number
+payee: after_text
+amount_prefix: på
+currency: NOK
+direction: inflow
