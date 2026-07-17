@@ -9,21 +9,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,10 +25,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.notifledger.app.R
 import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.ui.components.AccountField
+import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,23 +46,16 @@ fun CategorizationRulesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Categorization rules") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Lucide.ArrowLeft, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+            NotifLedgerTopAppBar(
+                title = stringResource(R.string.categorization_rules),
+                onBack = onBack,
             )
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(16.dp)) {
             if (!showAddForm) {
                 OutlinedButton(onClick = { showAddForm = true }) {
-                    Text("Add rule")
+                    Text(stringResource(R.string.add_rule))
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -95,7 +85,7 @@ fun CategorizationRulesScreen(
             }
 
             if (rules.isEmpty() && !showAddForm) {
-                Text("No categorization rules yet. Transactions default to expenses:unknown.")
+                Text(stringResource(R.string.no_rules_hint))
             }
 
             LazyColumn {
@@ -103,16 +93,21 @@ fun CategorizationRulesScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
                     ) {
                         Row(modifier = Modifier.padding(12.dp)) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (rule.match.isBlank()) "(default)" else rule.match,
+                                    text = if (rule.match.isBlank())
+                                        stringResource(R.string.rule_default_label)
+                                    else rule.match,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                 )
                                 Text(
-                                    text = "→ ${rule.account}",
+                                    text = stringResource(R.string.rule_account_arrow, rule.account),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
@@ -121,7 +116,7 @@ fun CategorizationRulesScreen(
                                 editingIndex = index
                                 showAddForm = false
                             }) {
-                                Text("Edit")
+                                Text(stringResource(R.string.edit))
                             }
                             TextButton(onClick = {
                                 val updated = viewModel.getCachedCategorizationRules().toMutableList()
@@ -130,7 +125,7 @@ fun CategorizationRulesScreen(
                                     viewModel.saveCategorizationRules(updated)
                                 }
                             }) {
-                                Text("Delete", color = MaterialTheme.colorScheme.error)
+                                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -154,8 +149,8 @@ private fun CategorizationRuleForm(
         OutlinedTextField(
             value = match,
             onValueChange = { match = it },
-            label = { Text("Payee pattern (regex)") },
-            placeholder = { Text("e.g. REMA|KIWI|COOP") },
+            label = { Text(stringResource(R.string.payee_pattern_label)) },
+            placeholder = { Text(stringResource(R.string.payee_pattern_placeholder)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -168,7 +163,7 @@ private fun CategorizationRuleForm(
         )
         Spacer(Modifier.height(12.dp))
         Row {
-            TextButton(onClick = onCancel) { Text("Cancel") }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
             Spacer(Modifier.width(8.dp))
             OutlinedButton(
                 onClick = {
@@ -176,7 +171,7 @@ private fun CategorizationRuleForm(
                 },
                 enabled = account.isNotBlank(),
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         }
     }

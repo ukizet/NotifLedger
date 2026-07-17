@@ -1,6 +1,7 @@
 package org.notifledger.app.ui
 
 import android.content.pm.PackageManager
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,9 +25,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,12 +35,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Minus
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Search
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.notifledger.app.R
+import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,22 +72,15 @@ fun NotificationSourcesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Notification sources") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Lucide.ArrowLeft, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+            NotifLedgerTopAppBar(
+                title = stringResource(R.string.notification_sources),
+                onBack = onBack,
             )
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text(
-                text = "Apps that NotifLedger listens to for notifications.",
+                text = stringResource(R.string.notif_sources_intro),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -92,14 +90,14 @@ fun NotificationSourcesScreen(
             OutlinedButton(onClick = { showSearchDialog = true }) {
                 Icon(Lucide.Plus, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
-                Text("Add app")
+                Text(stringResource(R.string.add_app))
             }
 
             Spacer(Modifier.height(12.dp))
 
             if (appLabels.isEmpty()) {
                 Text(
-                    "No apps selected. Tap \"Add app\" to choose which apps to listen to.",
+                    stringResource(R.string.no_sources_hint),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -109,6 +107,9 @@ fun NotificationSourcesScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -127,7 +128,7 @@ fun NotificationSourcesScreen(
                             }) {
                                 Icon(
                                     Lucide.Minus,
-                                    contentDescription = "Remove",
+                                    contentDescription = stringResource(R.string.remove),
                                     tint = MaterialTheme.colorScheme.error,
                                 )
                             }
@@ -161,22 +162,27 @@ private fun SearchAppsDialog(
     val context = LocalContext.current
     val pm = context.packageManager
 
-    // All installed apps with launcher icons, sorted by label
-    val allApps = remember {
-        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
-            addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+    var allApps by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
+
+    LaunchedEffect(Unit) {
+        allApps = withContext(Dispatchers.IO) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            }
+            pm.queryIntentActivities(intent, 0)
+                .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+                .sortedBy { (_, label) -> label }
         }
-        pm.queryIntentActivities(intent, 0)
-            .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
-            .sortedBy { (_, label) -> label }
-            .filter { (pkg, _) -> pkg !in selectedPackages } // Only show unselected ones
     }
 
     var query by remember { mutableStateOf("") }
 
-    val filtered = remember(allApps, query) {
-        if (query.isBlank()) allApps
-        else allApps.filter { (pkg, label) ->
+    val loaded = allApps
+    val filtered = remember(loaded, selectedPackages, query) {
+        if (loaded == null) return@remember emptyList()
+        val unselected = loaded.filter { (pkg, _) -> pkg !in selectedPackages }
+        if (query.isBlank()) unselected
+        else unselected.filter { (pkg, label) ->
             label.contains(query, ignoreCase = true) ||
             pkg.contains(query, ignoreCase = true)
         }
@@ -184,13 +190,13 @@ private fun SearchAppsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add app") },
+        title = { Text(stringResource(R.string.add_app)) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search apps...") },
+                    placeholder = { Text(stringResource(R.string.search_apps)) },
                     leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -198,9 +204,16 @@ private fun SearchAppsDialog(
 
                 Spacer(Modifier.height(8.dp))
 
-                if (filtered.isEmpty()) {
+                if (allApps == null) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(400.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else if (filtered.isEmpty()) {
                     Text(
-                        "No apps match your search.",
+                        stringResource(R.string.no_apps_match),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -234,7 +247,7 @@ private fun SearchAppsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

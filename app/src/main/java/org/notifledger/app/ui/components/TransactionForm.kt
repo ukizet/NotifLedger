@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Transaction
@@ -61,10 +63,7 @@ fun TransactionForm(
     val postings = remember {
         mutableStateListOf<Posting>().apply {
             if (initial.postings.isNotEmpty()) {
-                // Strip negative amounts — auto-balance fills them on save
-                addAll(initial.postings.map { p ->
-                    if (p.amount.startsWith("-")) p.copy(amount = "") else p
-                })
+                addAll(initial.postings)
             } else {
                 add(Posting(account = "", amount = "", currency = currency))
             }
@@ -82,6 +81,8 @@ fun TransactionForm(
             onValueChange = { date = it },
             label = { Text("Date") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            supportingText = { Text("YYYY-MM-DD") },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -163,7 +164,9 @@ fun TransactionForm(
                     },
                     label = { Text("Amount") },
                     singleLine = true,
-                    modifier = Modifier.width(100.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    supportingText = { Text("Empty = auto-balance") },
+                    modifier = Modifier.width(120.dp),
                 )
                 if (postings.size > 2) {
                     TextButton(

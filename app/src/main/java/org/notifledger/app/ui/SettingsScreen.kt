@@ -14,36 +14,31 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Bell
-import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.BellOff
+import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import org.notifledger.app.notification.NotificationHelper
+import org.notifledger.app.R
+import org.notifledger.app.ui.components.EditableSettingRow
+import org.notifledger.app.ui.components.NotifLedgerTopAppBar
+import org.notifledger.app.ui.util.rememberListenerEnabled
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,12 +51,10 @@ fun SettingsScreen(
     val defaultAccount by viewModel.defaultAccount.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
+    val isListening = rememberListenerEnabled(context)
 
-    var editingAccount by remember { mutableStateOf(false) }
-    var accountInput by remember { mutableStateOf("") }
-
-    val pickDirLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
+    val pickFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -75,16 +68,9 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Lucide.ArrowLeft, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+            NotifLedgerTopAppBar(
+                title = stringResource(R.string.settings),
+                onBack = onBack,
             )
         },
     ) { padding ->
@@ -94,165 +80,106 @@ fun SettingsScreen(
                 .padding(padding)
                 .padding(16.dp),
         ) {
-            // Notification listener status
-            val isListening = remember { NotificationHelper.isListenerEnabled(context) }
+            ListenerStatusCard(isListening = isListening)
+
+            Spacer(Modifier.height(12.dp))
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isListening)
-                        MaterialTheme.colorScheme.primaryContainer
-                    else
-                        MaterialTheme.colorScheme.errorContainer,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = if (isListening) Lucide.Bell else Lucide.BellOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = if (isListening)
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        else
-                            MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isListening) "Listening for notifications" else "Not listening",
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Text(
-                            text = if (isListening)
-                                "NotifLedger can capture notifications from allowed sources."
-                            else
-                                "Notification listener access is disabled. Tap to enable.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (!isListening) {
-                        OutlinedButton(
-                            onClick = {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                )
-                            },
-                        ) {
-                            Text("Enable")
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Journal path
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Journal file", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.journal_file), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = if (journalPath.isNotBlank()) journalPath else "Not set",
+                        text = if (journalPath.isNotBlank()) journalPath
+                        else stringResource(R.string.not_set),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = { pickDirLauncher.launch(null) }) {
-                        Text("Select directory")
+                    OutlinedButton(onClick = { pickFileLauncher.launch(arrayOf("*/*")) }) {
+                        Text(stringResource(R.string.select_journal_file))
                     }
                 }
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // Default payment account
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Default payment account", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(4.dp))
-                    if (editingAccount) {
-                        OutlinedTextField(
-                            value = accountInput,
-                            onValueChange = { accountInput = it },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    viewModel.settings.setDefaultAccount(accountInput.trim())
-                                }
-                                editingAccount = false
-                            },
-                        ) {
-                            Text("Save")
-                        }
-                    } else {
-                        Text(
-                            text = defaultAccount,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        OutlinedButton(onClick = {
-                            accountInput = defaultAccount
-                            editingAccount = true
-                        }) {
-                            Text("Change")
-                        }
-                    }
-                }
-            }
+            EditableSettingRow(
+                title = stringResource(R.string.default_account),
+                value = defaultAccount,
+                onSave = { scope.launch { viewModel.settings.setDefaultAccount(it) } },
+            )
 
             Spacer(Modifier.height(12.dp))
 
-            // Default currency
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Default currency", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(4.dp))
-                    var editingCurrency by remember { mutableStateOf(false) }
-                    var currencyInput by remember { mutableStateOf("") }
-                    if (editingCurrency) {
-                        OutlinedTextField(
-                            value = currencyInput,
-                            onValueChange = { currencyInput = it },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+            EditableSettingRow(
+                title = stringResource(R.string.default_currency),
+                value = defaultCurrency,
+                onSave = { scope.launch { viewModel.settings.setDefaultCurrency(it) } },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ListenerStatusCard(isListening: Boolean) {
+    val context = LocalContext.current
+    val containerColor = if (isListening)
+        MaterialTheme.colorScheme.primaryContainer
+    else
+        MaterialTheme.colorScheme.errorContainer
+    val onContainerColor = if (isListening)
+        MaterialTheme.colorScheme.onPrimaryContainer
+    else
+        MaterialTheme.colorScheme.onErrorContainer
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (isListening) Lucide.Bell else Lucide.BellOff,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = onContainerColor,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isListening)
+                        stringResource(R.string.listener_status_on)
+                    else
+                        stringResource(R.string.listener_status_off),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = if (isListening)
+                        stringResource(R.string.listener_status_on_hint)
+                    else
+                        stringResource(R.string.listener_status_off_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (!isListening) {
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                         )
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    viewModel.settings.setDefaultCurrency(currencyInput.trim())
-                                }
-                                editingCurrency = false
-                            },
-                        ) {
-                            Text("Save")
-                        }
-                    } else {
-                        Text(
-                            text = defaultCurrency,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        OutlinedButton(onClick = {
-                            currencyInput = defaultCurrency
-                            editingCurrency = true
-                        }) {
-                            Text("Change")
-                        }
-                    }
+                    },
+                ) {
+                    Text(stringResource(R.string.enable))
                 }
             }
         }

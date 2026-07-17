@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.notifledger.app.log.AppLogger
 import org.notifledger.app.notification.NotificationHelper
 import org.notifledger.app.settings.SettingsManager
 
@@ -14,8 +15,10 @@ class NotifLedgerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLogger.info("App", "Application starting")
         settings = SettingsManager(this)
         NotificationHelper.showListeningNotification(this)
+        AppLogger.info("App", "Application started")
     }
 
     /** Used by NotifListener to get the current journal path as a Uri. */

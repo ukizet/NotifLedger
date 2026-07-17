@@ -2,23 +2,22 @@ package org.notifledger.app.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import org.notifledger.app.R
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Source
 import org.notifledger.app.model.Transaction
+import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 import org.notifledger.app.ui.components.TransactionForm
 import java.time.LocalDate
 
@@ -32,21 +31,24 @@ fun QuickAddScreen(
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val payeeSuggestions by viewModel.existingPayees.collectAsState()
     val accountSuggestions by viewModel.existingAccounts.collectAsState()
+    val uiMessage by viewModel.uiMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiMessage) {
+        uiMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeMessage()
+        }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Quick add") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Lucide.ArrowLeft, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+            NotifLedgerTopAppBar(
+                title = stringResource(R.string.quick_add),
+                onBack = onBack,
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         TransactionForm(
             initial = Transaction(

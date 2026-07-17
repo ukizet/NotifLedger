@@ -14,16 +14,25 @@ fun NotifLedgerNavGraph(
         composable(Screen.Main.route) {
             MainScreen(
                 viewModel = viewModel,
+                navController = navController,
                 onNavigateToQuickAdd = { navController.navigate(Screen.QuickAdd.route) },
                 onNavigateToRawJournal = { navController.navigate(Screen.RawJournal.route) },
                 onNavigateToCategorizationRules = { navController.navigate(Screen.CategorizationRules.route) },
                 onNavigateToNotificationSources = { navController.navigate(Screen.NotificationSources.route) },
+                onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
             )
         }
 
         composable(Screen.QuickAdd.route) {
             QuickAddScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Screen.Logs.route) {
+            LogsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
             )

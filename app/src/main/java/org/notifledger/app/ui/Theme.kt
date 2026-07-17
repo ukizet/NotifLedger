@@ -7,6 +7,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+/**
+ * AMOLED-friendly dark scheme: surface is pure black so the app blends into OLED
+ * backgrounds, but that makes default-toned Cards invisible against it.
+ *
+ * material3 1.1.2 (pinned by compose-bom 2024.01.00) does not expose the
+ * `surfaceContainer` / `surfaceContainerHigh` tones the M3 spec recommends for
+ * container roles, so cards in the dark theme use `surfaceVariant` (#1C1B1F) as
+ * their container color instead. If/when the BOM is bumped to material3 ≥ 1.2.0,
+ * these can switch to dedicated surfaceContainer tones.
+ */
 private val AmoledDarkColorScheme = darkColorScheme(
     primary = Color(0xFF90CAF9),
     onPrimary = Color(0xFF003258),

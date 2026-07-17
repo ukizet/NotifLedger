@@ -1,28 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NotifLedger</string>
+    <string name="back">Back</string>
     <string name="quick_add">Quick add</string>
-    <string name="parser_rules">Parser rules</string>
     <string name="categorization_rules">Categorization rules</string>
     <string name="raw_journal">Raw journal</string>
     <string name="settings">Settings</string>
-    <string name="default_account">Default payment account</string>
+    <string name="logs">Logs</string>
     <string name="edit">Edit</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>
+    <string name="change">Change</string>
+    <string name="done">Done</string>
+    <string name="enable">Enable</string>
+    <string name="not_set">Not set</string>
+    <string name="remove">Remove</string>
+
+    <!-- Transaction form fields -->
     <string name="amount">Amount</string>
     <string name="payee">Payee</string>
     <string name="account">Account</string>
     <string name="date">Date</string>
     <string name="currency">Currency</string>
     <string name="description">Description</string>
-    <string name="journal_path">Journal file path</string>
-    <string name="select_journal">Select a journal file or directory</string>
-    <string name="no_journal_selected">No journal selected. Tap to choose.</string>
-    <string name="no_transactions">No transactions yet.</string>
-    <string name="notification_capture">Notification capture</string>
+
+    <!-- Main screen -->
+    <string name="no_journal_selected">Select a journal file to begin</string>
+    <string name="no_transactions">No transactions yet. Add one with the + button.</string>
+    <string name="cd_listener_off">Notification listener is off — tap to open settings</string>
+    <string name="cd_no_sources">No notification sources selected — tap to open settings</string>
+    <string name="cd_listening">Listening for notifications</string>
+    <string name="edit_transaction">Edit transaction</string>
+    <string name="delete_transaction">Delete transaction</string>
+    <string name="delete_transaction_confirm">Delete %1$s %2$s?</string>
+    <string name="simulate_notification">Simulate notification</string>
+    <string name="simulate_intro">Paste a notification. The app will find the first number as the amount and use the title as the payee.</string>
+    <string name="notif_title_label">Notification title</string>
+    <string name="notif_title_placeholder">e.g. Betalt</string>
+    <string name="notif_text_label">Notification text</string>
+    <string name="notif_text_placeholder">e.g. Betalt 184.50 kr hos Rema 1000</string>
+    <string name="test_parse_write">Test parse &amp; write</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Setup checklist</string>
+    <string name="onboarding_pick_journal">Pick journal file</string>
+    <string name="onboarding_grant_access">Grant notification access</string>
+    <string name="onboarding_add_source">Add a notification source</string>
+    <string name="onboarding_set_account">Set default account</string>
+
+    <!-- Settings -->
+    <string name="default_account">Default payment account</string>
+    <string name="default_currency">Default currency</string>
+    <string name="journal_file">Journal file</string>
+    <string name="select_journal_file">Select journal file</string>
+    <string name="listener_status_on">Listening for notifications</string>
+    <string name="listener_status_off">Not listening</string>
+    <string name="listener_status_on_hint">NotifLedger can capture notifications from allowed sources.</string>
+    <string name="listener_status_off_hint">Notification listener access is disabled. Tap to enable.</string>
+
+    <!-- Notification sources -->
     <string name="notification_sources">Notification sources</string>
-    <string name="add_source">Add source app</string>
-    <string name="notif_listener_disabled">Notification listener is not enabled in system settings.</string>
+    <string name="add_app">Add app</string>
+    <string name="notif_sources_intro">Apps that NotifLedger listens to for notifications.</string>
+    <string name="no_sources_hint">No apps selected. Tap \"Add app\" to choose which apps to listen to.</string>
+    <string name="search_apps">Search apps…</string>
+    <string name="no_apps_match">No apps match your search.</string>
+
+    <!-- Categorization rules -->
+    <string name="add_rule">Add rule</string>
+    <string name="no_rules_hint">No categorization rules yet. Transactions default to expenses:unknown.</string>
+    <string name="rule_default_label">(default)</string>
+    <string name="rule_account_arrow">→ %1$s</string>
+    <string name="payee_pattern_label">Payee pattern (regex)</string>
+    <string name="payee_pattern_placeholder">e.g. REMA|KIWI|COOP</string>
+
+    <!-- Raw journal -->
+    <string name="no_journal_or_empty">No journal file selected or file is empty.</string>
+
+    <!-- Logs -->
+    <string name="clear_logs">Clear logs</string>
+    <string name="filter_all">All</string>
+    <string name="filter_info">Info</string>
+    <string name="filter_warnings">Warnings</string>
+    <string name="filter_errors">Errors</string>
+    <string name="log_summary">%1$d entries · %2$d info · %3$d warnings · %4$d errors</string>
+    <string name="no_log_entries">No log entries yet.</string>
+    <string name="no_log_match_filter">No entries match the filter.</string>
+
+    <!-- Foreground notification shown by NotificationHelper -->
+    <string name="notif_listening_title">NotifLedger is listening</string>
+    <string name="notif_listening_text">Monitoring notifications from allowed sources</string>
+    <string name="notif_not_listening_text">Tap to enable notification listener access</string>
+    <string name="notif_listener_channel_name">Notification Listener</string>
+    <string name="notif_listener_channel_desc">Indicates the notification listener is active</string>
 </resources>

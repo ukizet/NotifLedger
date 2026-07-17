@@ -9,6 +9,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import org.notifledger.app.MainActivity
+import org.notifledger.app.R
+import org.notifledger.app.log.AppLogger
 
 /**
  * Helper for showing/hiding a persistent notification that indicates the
@@ -58,9 +60,10 @@ object NotificationHelper {
     fun showListeningNotification(context: Context) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        createChannel(nm)
+        createChannel(context, nm)
 
         val isActive = isListenerEnabled(context)
+        AppLogger.info("Notif", "Listener enabled: $isActive — showing status notification")
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
@@ -73,10 +76,10 @@ object NotificationHelper {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setOngoing(true)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("NotifLedger is listening")
+            .setContentTitle(context.getString(R.string.notif_listening_title))
             .setContentText(
-                if (isActive) "Monitoring notifications from allowed sources"
-                else "Tap to enable notification listener access"
+                if (isActive) context.getString(R.string.notif_listening_text)
+                else context.getString(R.string.notif_not_listening_text)
             )
             .setContentIntent(pendingIntent)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -90,14 +93,14 @@ object NotificationHelper {
         nm.cancel(LISTENER_NOTIFICATION_ID)
     }
 
-    private fun createChannel(nm: NotificationManager) {
+    private fun createChannel(context: Context, nm: NotificationManager) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Notification Listener",
+                context.getString(R.string.notif_listener_channel_name),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Indicates the notification listener is active"
+                description = context.getString(R.string.notif_listener_channel_desc)
                 setShowBadge(false)
             }
             nm.createNotificationChannel(channel)

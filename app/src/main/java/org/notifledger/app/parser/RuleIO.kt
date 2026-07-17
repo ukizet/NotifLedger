@@ -1,5 +1,6 @@
 package org.notifledger.app.parser
 
+import org.notifledger.app.log.AppLogger
 import org.notifledger.app.model.CategorizationRule
 import org.yaml.snakeyaml.Yaml
 import java.io.File
@@ -18,7 +19,7 @@ object RuleIO {
         val file = File(rulesDir, "categorization.yaml")
         if (!file.exists()) return emptyList()
         return try {
-            val data = yaml.load<List<Map<String, Any>>>(file.inputStream())
+            val data = file.inputStream().use { yaml.load<List<Map<String, Any>>>(it) }
             data.mapNotNull { entry ->
                 val account = entry["account"] as? String ?: return@mapNotNull null
                 CategorizationRule(
@@ -27,6 +28,7 @@ object RuleIO {
                 )
             }
         } catch (e: Exception) {
+            AppLogger.error("Rules", "Failed to load rules: ${e.message}")
             emptyList()
         }
     }
@@ -40,5 +42,6 @@ object RuleIO {
             m
         }
         File(rulesDir, "categorization.yaml").writeText(yaml.dumpAll(listOf(data).iterator()))
+        AppLogger.info("Rules", "Saved ${rules.size} rules")
     }
 }
