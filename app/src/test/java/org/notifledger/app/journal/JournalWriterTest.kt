@@ -151,4 +151,104 @@ class JournalWriterTest {
         val entries = JournalWriter.readAll(content)
         assertEquals(1, entries.size)
     }
+
+    @Test
+    fun `replaceInContent with multi-entry content preserves blank line separator`() {
+        // Content: 8 newlines → .lines() produces 9 elements (including trailing empties)
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n" +
+                "\n")
+        val tx = Transaction(
+            date = "2026-07-12",
+            payee = "Rema 1000",
+            postings = listOf(
+                Posting("expenses:groceries", "200.00", "NOK"),
+                Posting("assets:bank:checking", "-200.00", "NOK"),
+            ),
+        )
+        val result = JournalWriter.replaceInContent(content, 0, tx)
+        val lines = result.lines()
+        assertEquals("blank line separator between entries must be preserved", "", lines[3])
+        assertEquals("second entry should follow the blank separator", "2026-07-13 Kiwi", lines[4])
+        // Old amount should be gone, new amount present
+        assertEquals(false, result.contains("184.50"))
+        assertEquals(true, result.contains("200.00"))
+    }
+
+    @Test
+    fun `replaceInContent with last entry adds blank line separator`() {
+        // Content: 8 newlines → .lines() produces 9 elements
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n" +
+                "\n")
+        val tx = Transaction(
+            date = "2026-07-13",
+            payee = "Kiwi",
+            postings = listOf(
+                Posting("expenses:groceries", "100.00", "NOK"),
+                Posting("assets:bank:checking", "-100.00", "NOK"),
+            ),
+        )
+        val result = JournalWriter.replaceInContent(content, 4, tx)
+        val lines = result.lines()
+        assertEquals("blank line separator between entries must be preserved", "", lines[3])
+        assertEquals("first entry unchanged", "2026-07-12 Rema 1000", lines[0])
+        assertEquals("second entry updated", "2026-07-13 Kiwi", lines[4])
+        // Old amount should be gone, new amount present
+        assertEquals(false, result.contains("95.00"))
+        assertEquals(true, result.contains("100.00"))
+    }
+
+    @Test
+    fun `replaceInContent with entry at end of file without trailing newline`() {
+        // Content ends without \n → .lines() produces 7 elements (no trailing empty)
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK")
+        val tx = Transaction(
+            date = "2026-07-13",
+            payee = "Kiwi",
+            postings = listOf(
+                Posting("expenses:groceries", "100.00", "NOK"),
+                Posting("assets:bank:checking", "-100.00", "NOK"),
+            ),
+        )
+        val result = JournalWriter.replaceInContent(content, 4, tx)
+        val lines = result.lines()
+        assertEquals(7, lines.size)
+        assertEquals("blank line separator between entries must be preserved", "", lines[3])
+        assertEquals("2026-07-13 Kiwi", lines[4])
+        // Old amount should be gone, new amount present
+        assertEquals(false, result.contains("95.00"))
+        assertEquals(true, result.contains("100.00"))
+    }
+
+    @Test
+    fun `countEntryLines does not count blank line`() {
+        val lines = listOf(
+            "2026-07-12 Rema 1000",
+            "    expenses:groceries              184.50 NOK",
+            "    assets:bank:checking           -184.50 NOK",
+            "",
+            "2026-07-13 Kiwi",
+            "    expenses:groceries               95.00 NOK",
+            "    assets:bank:checking             -95.00 NOK",
+        )
+        val count = JournalWriter.countEntryLines(lines, 0)
+        assertEquals(3, count)  // date line + 2 posting lines; blank line NOT counted
+    }
 }

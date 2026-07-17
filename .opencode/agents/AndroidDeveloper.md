@@ -1,6 +1,7 @@
 ---
 description: Main Android Developer
 mode: subagent
+model: z-ai/glm-5.2
 permission:
     edit: allow
     bash: allow

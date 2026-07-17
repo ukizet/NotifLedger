@@ -220,6 +220,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val lines = content.lines().toMutableList()
                 val entryLineCount = JournalWriter.countEntryLines(lines, offset)
                 repeat(entryLineCount) { if (offset < lines.size) lines.removeAt(offset) }
+                // Remove the blank line separator that follows
+                if (offset < lines.size && lines[offset].isBlank()) {
+                    lines.removeAt(offset)
+                }
                 val updated = lines.joinToString("\n")
                 if (writeJournalContent(path, updated)) emitMessage("Deleted") else emitMessage("Delete failed — see Logs")
                 _allEntries.value = JournalWriter.readAll(updated)

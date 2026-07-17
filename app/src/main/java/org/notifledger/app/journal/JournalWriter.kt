@@ -74,6 +74,12 @@ object JournalWriter {
         // Insert new entry lines
         newEntry.reversed().forEach { lines.add(lineOffset, it) }
 
+        // Ensure blank line separator after the replaced entry
+        val insertEnd = lineOffset + newEntry.size
+        if (insertEnd < lines.size && lines[insertEnd].isNotBlank()) {
+            lines.add(insertEnd, "")
+        }
+
         return lines.joinToString("\n")
     }
 
@@ -195,7 +201,7 @@ object JournalWriter {
         var count = 1
         for (k in (startOffset + 1) until lines.size) {
             val l = lines[k]
-            if (l.isBlank()) { count++; break }
+            if (l.isBlank()) { break }
             if (l.matches(Regex("^\\d{4}-\\d{2}-\\d{2}\\s"))) break
             count++
         }

@@ -3,6 +3,19 @@
 Guidance for OpenCode sessions working in this repo. Read `docs/design.md` before
 changing core flow — many "obvious improvements" are explicit non-goals (see §8).
 
+## Agent usage policy
+
+**Use available agents for all substantive work.** This repo has specialized agents
+(`QATestEngineer`, `explore`, `UIUXDesigner`, etc.). The orchestrator agent should:
+
+- **Always delegate** to the appropriate agent rather than writing code directly.
+  Only write code yourself when no suitable agent exists or the change is trivial
+  (1–3 lines with zero logic).
+- **Partition work by file** (see below) when dispatching multiple agents.
+- **Verify** that the agent completed the work correctly (run builds/tests).
+- **Read `AGENTS.md` before starting** — this file is the single source of truth
+  for build commands, conventions, and boundaries.
+
 ## Multi-agent coordination
 
 When dispatching multiple agents in parallel, partition work by **file ownership** to
