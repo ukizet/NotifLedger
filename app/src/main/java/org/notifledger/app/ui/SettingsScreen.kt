@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.notifledger.app.R
@@ -95,10 +96,12 @@ fun SettingsScreen(
                     Text(stringResource(R.string.journal_file), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = if (journalPath.isNotBlank()) journalPath
+                        text = if (journalPath.isNotBlank()) Uri.decode(journalPath)
                         else stringResource(R.string.not_set),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = { pickFileLauncher.launch(arrayOf("*/*")) }) {

@@ -15,7 +15,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -27,9 +26,12 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import org.notifledger.app.R
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Transaction
 
@@ -79,10 +81,10 @@ fun TransactionForm(
         OutlinedTextField(
             value = date,
             onValueChange = { date = it },
-            label = { Text("Date") },
+            label = { Text(stringResource(R.string.date)) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            supportingText = { Text("YYYY-MM-DD") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            supportingText = { Text(stringResource(R.string.form_date_hint)) },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -103,7 +105,7 @@ fun TransactionForm(
                     payee = it
                     payeeExpanded = true
                 },
-                label = { Text("Payee") },
+                label = { Text(stringResource(R.string.payee)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().menuAnchor(),
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payeeExpanded) },
@@ -129,7 +131,7 @@ fun TransactionForm(
         OutlinedTextField(
             value = currency,
             onValueChange = { currency = it },
-            label = { Text("Currency") },
+            label = { Text(stringResource(R.string.currency)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -137,46 +139,48 @@ fun TransactionForm(
         Spacer(Modifier.height(12.dp))
 
         Text(
-            text = "Postings",
+            text = stringResource(R.string.form_postings_title),
             style = MaterialTheme.typography.titleSmall,
         )
-
         Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.form_auto_balance_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
 
         postings.forEachIndexed { index, posting ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 AccountField(
                     value = posting.account,
-                    onValueChange = { newAccount ->
-                        postings[index] = posting.copy(account = newAccount)
-                    },
+                    onValueChange = { newAccount -> postings[index] = posting.copy(account = newAccount) },
                     suggestions = accountSuggestions,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = posting.amount,
-                    onValueChange = { newAmount ->
-                        postings[index] = posting.copy(amount = newAmount)
-                    },
-                    label = { Text("Amount") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    supportingText = { Text("Empty = auto-balance") },
-                    modifier = Modifier.width(120.dp),
-                )
-                if (postings.size > 2) {
-                    TextButton(
-                        onClick = { postings.removeAt(index) },
-                    ) {
-                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = posting.amount,
+                        onValueChange = { newAmount -> postings[index] = posting.copy(amount = newAmount) },
+                        label = { Text(stringResource(R.string.amount)) },
+                        placeholder = { Text(stringResource(R.string.form_amount_placeholder)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (postings.size > 2) {
+                        TextButton(onClick = { postings.removeAt(index) }) {
+                            Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
         }
 
         Spacer(Modifier.height(8.dp))
@@ -186,7 +190,7 @@ fun TransactionForm(
                 postings.add(Posting(account = "", amount = "", currency = currency))
             },
         ) {
-            Text("Add posting")
+            Text(stringResource(R.string.form_add_posting))
         }
 
         Spacer(Modifier.height(8.dp))
@@ -194,7 +198,7 @@ fun TransactionForm(
         OutlinedTextField(
             value = note,
             onValueChange = { note = it },
-            label = { Text("Note (optional)") },
+            label = { Text(stringResource(R.string.form_note_hint)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -207,7 +211,7 @@ fun TransactionForm(
             horizontalArrangement = Arrangement.End,
         ) {
             TextButton(onClick = onCancel) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
             Spacer(Modifier.width(8.dp))
             OutlinedButton(
@@ -225,7 +229,7 @@ fun TransactionForm(
                     onSave(tx)
                 },
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         }
     }

@@ -1,6 +1,7 @@
 package org.notifledger.app.ui
 
 import android.net.Uri
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -71,7 +73,7 @@ fun RawJournalScreen(
             )
 
             RawLoadState.Error -> Text(
-                text = "Couldn't open journal — permission may have been revoked. Re-select the file in Settings.",
+                text = stringResource(R.string.raw_journal_open_error),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
@@ -79,11 +81,13 @@ fun RawJournalScreen(
 
             is RawLoadState.Loaded -> Text(
                 text = s.content,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                softWrap = false,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp)
+                    .horizontalScroll(rememberScrollState())
                     .verticalScroll(rememberScrollState()),
             )
         }

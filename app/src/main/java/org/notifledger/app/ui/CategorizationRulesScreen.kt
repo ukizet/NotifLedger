@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +44,7 @@ fun CategorizationRulesScreen(
     val accountSuggestions by viewModel.existingAccounts.collectAsState()
     var showAddForm by remember { mutableStateOf(false) }
     var editingIndex by remember { mutableStateOf(-1) }
+    var deletingIndex by remember { mutableStateOf(-1) }
 
     Scaffold(
         topBar = {
@@ -118,13 +120,7 @@ fun CategorizationRulesScreen(
                             }) {
                                 Text(stringResource(R.string.edit))
                             }
-                            TextButton(onClick = {
-                                val updated = viewModel.getCachedCategorizationRules().toMutableList()
-                                if (index in updated.indices) {
-                                    updated.removeAt(index)
-                                    viewModel.saveCategorizationRules(updated)
-                                }
-                            }) {
+                            TextButton(onClick = { deletingIndex = index }) {
                                 Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -132,6 +128,31 @@ fun CategorizationRulesScreen(
                 }
             }
         }
+    }
+
+    if (deletingIndex in rules.indices) {
+        AlertDialog(
+            onDismissRequest = { deletingIndex = -1 },
+            title = { Text(stringResource(R.string.delete)) },
+            text = { Text(stringResource(R.string.rules_delete_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = viewModel.getCachedCategorizationRules().toMutableList()
+                    if (deletingIndex in updated.indices) {
+                        updated.removeAt(deletingIndex)
+                        viewModel.saveCategorizationRules(updated)
+                    }
+                    deletingIndex = -1
+                }) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingIndex = -1 }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

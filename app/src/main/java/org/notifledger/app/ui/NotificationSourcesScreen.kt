@@ -38,9 +38,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Minus
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Trash2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.notifledger.app.R
@@ -56,14 +56,17 @@ fun NotificationSourcesScreen(
     val context = LocalContext.current
     val pm = context.packageManager
 
-    // Resolve package names to labels for display
-    val appLabels = remember(sources) {
-        sources.mapNotNull { pkg ->
-            try {
-                val info = pm.getApplicationInfo(pkg, 0)
-                pkg to info.loadLabel(pm).toString()
-            } catch (_: Exception) {
-                pkg to pkg
+    // Resolve package names to labels for display (off main thread)
+    var appLabels by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    LaunchedEffect(sources) {
+        appLabels = withContext(Dispatchers.IO) {
+            sources.mapNotNull { pkg ->
+                try {
+                    val info = pm.getApplicationInfo(pkg, 0)
+                    pkg to info.loadLabel(pm).toString()
+                } catch (_: Exception) {
+                    pkg to pkg
+                }
             }
         }
     }
@@ -127,7 +130,7 @@ fun NotificationSourcesScreen(
                                 viewModel.setNotificationSources(sources - pkg)
                             }) {
                                 Icon(
-                                    Lucide.Minus,
+                                    Lucide.Trash2,
                                     contentDescription = stringResource(R.string.remove),
                                     tint = MaterialTheme.colorScheme.error,
                                 )

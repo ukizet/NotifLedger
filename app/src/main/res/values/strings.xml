@@ -13,9 +13,16 @@
     <string name="delete">Delete</string>
     <string name="change">Change</string>
     <string name="done">Done</string>
+    <string name="dismiss">Dismiss</string>
     <string name="enable">Enable</string>
     <string name="not_set">Not set</string>
     <string name="remove">Remove</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_rules">Rules</string>
+    <string name="nav_journal">Journal</string>
+    <string name="nav_sources">Sources</string>
+    <string name="nav_test">Test</string>
 
     <!-- Transaction form fields -->
     <string name="amount">Amount</string>
@@ -24,6 +31,12 @@
     <string name="date">Date</string>
     <string name="currency">Currency</string>
     <string name="description">Description</string>
+    <string name="form_date_hint">YYYY-MM-DD</string>
+    <string name="form_postings_title">Postings</string>
+    <string name="form_auto_balance_hint">Leave amount empty to auto-balance.</string>
+    <string name="form_amount_placeholder">auto</string>
+    <string name="form_add_posting">Add posting</string>
+    <string name="form_note_hint">Note (optional)</string>
 
     <!-- Main screen -->
     <string name="no_journal_selected">Select a journal file to begin</string>
@@ -41,6 +54,14 @@
     <string name="notif_text_label">Notification text</string>
     <string name="notif_text_placeholder">e.g. Betalt 184.50 kr hos Rema 1000</string>
     <string name="test_parse_write">Test parse &amp; write</string>
+
+    <!-- Journal list controls -->
+    <string name="sort_newest_first">Newest first</string>
+    <string name="sort_oldest_first">Oldest first</string>
+    <string name="sort_highest_amount">Highest amount first</string>
+    <string name="sort_lowest_amount">Lowest amount first</string>
+    <string name="page_per_page">%1$d per page</string>
+    <string name="page_size">Page size</string>
 
     <!-- Onboarding -->
     <string name="onboarding_title">Setup checklist</string>
@@ -74,9 +95,11 @@
     <string name="rule_account_arrow">→ %1$s</string>
     <string name="payee_pattern_label">Payee pattern (regex)</string>
     <string name="payee_pattern_placeholder">e.g. REMA|KIWI|COOP</string>
+    <string name="rules_delete_confirm">Delete this rule?</string>
 
     <!-- Raw journal -->
     <string name="no_journal_or_empty">No journal file selected or file is empty.</string>
+    <string name="raw_journal_open_error">Couldn\'t open journal — permission may have been revoked. Re-select the file in Settings.</string>
 
     <!-- Logs -->
     <string name="clear_logs">Clear logs</string>
@@ -87,6 +110,7 @@
     <string name="log_summary">%1$d entries · %2$d info · %3$d warnings · %4$d errors</string>
     <string name="no_log_entries">No log entries yet.</string>
     <string name="no_log_match_filter">No entries match the filter.</string>
+    <string name="logs_clear_confirm">Clear all log entries?</string>
 
     <!-- Foreground notification shown by NotificationHelper -->
     <string name="notif_listening_title">NotifLedger is listening</string>
@@ -94,4 +118,7 @@
     <string name="notif_not_listening_text">Tap to enable notification listener access</string>
     <string name="notif_listener_channel_name">Notification Listener</string>
     <string name="notif_listener_channel_desc">Indicates the notification listener is active</string>
+
+    <!-- Listener heartbeat banner -->
+    <string name="listener_needs_attention">Listener connection lost — tap to check</string>
 </resources>

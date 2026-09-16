@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,9 +25,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +46,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Trash2
 import com.composables.icons.lucide.TriangleAlert
 import org.notifledger.app.R
+import org.notifledger.app.log.AppLogger
 import org.notifledger.app.log.LogEntry
 import org.notifledger.app.log.LogLevel
 import org.notifledger.app.ui.components.NotifLedgerTopAppBar
@@ -55,18 +59,28 @@ fun LogsScreen(
 ) {
     val entries by viewModel.logEntries.collectAsState()
     var filterLevel by remember { mutableStateOf<LogLevel?>(null) }
+    var showClearConfirm by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     val filtered = remember(entries, filterLevel) {
         if (filterLevel != null) entries.filter { it.level == filterLevel } else entries
     }
 
-    LaunchedEffect(entries.size, filterLevel) {
-        if (filtered.isEmpty()) return@LaunchedEffect
-        val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let {
-            it >= filtered.size - 3
-        } ?: true
-        if (nearBottom) listState.animateScrollToItem(filtered.size - 1)
+    val shouldAutoScroll = remember {
+        derivedStateOf {
+            if (filtered.isEmpty()) false
+            else {
+                val nearBottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let {
+                    it >= filtered.size - 3
+                } ?: true
+                nearBottom
+            }
+        }
+    }
+    LaunchedEffect(shouldAutoScroll.value) {
+        if (shouldAutoScroll.value) {
+            listState.animateScrollToItem(filtered.size - 1)
+        }
     }
 
     Scaffold(
@@ -75,7 +89,7 @@ fun LogsScreen(
                 title = stringResource(R.string.logs),
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { org.notifledger.app.log.AppLogger.clear() }) {
+                    IconButton(onClick = { showClearConfirm = true }) {
                         Icon(Lucide.Trash2, contentDescription = stringResource(R.string.clear_logs))
                     }
                 },
@@ -127,11 +141,14 @@ fun LogsScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            val infoCount = entries.count { it.level == LogLevel.INFO }
-            val warnCount = entries.count { it.level == LogLevel.WARN }
-            val errorCount = entries.count { it.level == LogLevel.ERROR }
+            val counts = remember(entries) {
+                val info = entries.count { it.level == LogLevel.INFO }
+                val warn = entries.count { it.level == LogLevel.WARN }
+                val error = entries.count { it.level == LogLevel.ERROR }
+                Triple(info, warn, error)
+            }
             Text(
-                text = stringResource(R.string.log_summary, entries.size, infoCount, warnCount, errorCount),
+                text = stringResource(R.string.log_summary, entries.size, counts.first, counts.second, counts.third),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -164,6 +181,27 @@ fun LogsScreen(
                 }
             }
         }
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(stringResource(R.string.clear_logs)) },
+            text = { Text(stringResource(R.string.logs_clear_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    AppLogger.clear()
+                    showClearConfirm = false
+                }) {
+                    Text(stringResource(R.string.clear_logs), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import org.notifledger.app.R
 
 /**
  * Account text field with dropdown suggestions from existing accounts.
@@ -25,7 +27,7 @@ fun AccountField(
     onValueChange: (String) -> Unit,
     suggestions: List<String>,
     modifier: Modifier = Modifier,
-    label: String = "Account",
+    label: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val filtered = remember(value, suggestions) {
@@ -43,7 +45,7 @@ fun AccountField(
                 onValueChange(it)
                 expanded = true
             },
-            label = { Text(label) },
+            label = { Text(label ?: stringResource(R.string.account)) },
             singleLine = true,
             modifier = Modifier.menuAnchor(),
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },

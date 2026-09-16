@@ -8,3 +8,6 @@ build
 .devenv
 
 local.properties
+
+# Local device screenshots (contain real transaction data)
+notifledger-screenshots/

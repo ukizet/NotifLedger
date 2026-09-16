@@ -1,16 +1,19 @@
 package org.notifledger.app.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,13 +58,20 @@ fun EditableSettingRow(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedButton(
-                    onClick = {
-                        onSave(input.trim())
-                        editing = false
-                    },
-                ) {
-                    Text(stringResource(R.string.save))
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    TextButton(onClick = { editing = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            onSave(input.trim())
+                            editing = false
+                        },
+                    ) {
+                        Text(stringResource(R.string.save))
+                    }
                 }
             } else {
                 Text(value, style = MaterialTheme.typography.bodyMedium)

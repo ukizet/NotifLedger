@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pencil
@@ -52,12 +53,15 @@ fun TransactionRow(
                 Text(
                     text = displayDate,
                     style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     text = entry.payee,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(3f),
                 )
                 IconButton(onClick = onEdit) {

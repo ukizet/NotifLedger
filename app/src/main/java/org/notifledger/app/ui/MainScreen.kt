@@ -2,11 +2,14 @@ package org.notifledger.app.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -50,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -62,10 +70,12 @@ import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.ScrollText
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Tags
+import com.composables.icons.lucide.X
 import kotlinx.coroutines.launch
 import org.notifledger.app.R
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
+import org.notifledger.app.notification.NotificationHandler
 import org.notifledger.app.ui.components.OnboardingChecklist
 import org.notifledger.app.ui.components.OnboardingItem
 import org.notifledger.app.ui.components.TransactionForm
@@ -95,8 +105,13 @@ fun MainScreen(
     val defaultAccount by viewModel.defaultAccount.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val uiMessage by viewModel.uiMessage.collectAsState()
+    val lastListenerConnectedAt by viewModel.lastListenerConnectedAt.collectAsState()
     val context = LocalContext.current
     val isListening = rememberListenerEnabled(context)
+    val listenerNeedsAttention = remember(isListening, lastListenerConnectedAt) {
+        NotificationHandler.needsListenerAttention(isListening, lastListenerConnectedAt)
+    }
+    var listenerBannerDismissed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -203,6 +218,12 @@ fun MainScreen(
             }
         } else if (entries.isEmpty()) {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (listenerNeedsAttention && !listenerBannerDismissed) {
+                    ListenerHeartbeatBanner(
+                        onDismiss = { listenerBannerDismissed = true },
+                        context = context,
+                    )
+                }
                 OnboardingChecklist(
                     items = onboardingItems,
                     modifier = Modifier.padding(top = 12.dp),
@@ -220,6 +241,12 @@ fun MainScreen(
             }
         } else {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (listenerNeedsAttention && !listenerBannerDismissed) {
+                    ListenerHeartbeatBanner(
+                        onDismiss = { listenerBannerDismissed = true },
+                        context = context,
+                    )
+                }
                 OnboardingChecklist(
                     items = onboardingItems,
                     modifier = Modifier.padding(top = 12.dp),
@@ -250,42 +277,58 @@ fun MainScreen(
                             onDismissRequest = { sortExpanded = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Newest first") },
+                                text = { Text(stringResource(R.string.sort_newest_first)) },
                                 onClick = { viewModel.setSortOrder(SortOrder.NewestFirst); sortExpanded = false },
                             )
                             DropdownMenuItem(
-                                text = { Text("Oldest first") },
+                                text = { Text(stringResource(R.string.sort_oldest_first)) },
                                 onClick = { viewModel.setSortOrder(SortOrder.OldestFirst); sortExpanded = false },
                             )
                             DropdownMenuItem(
-                                text = { Text("Highest amount first") },
+                                text = { Text(stringResource(R.string.sort_highest_amount)) },
                                 onClick = { viewModel.setSortOrder(SortOrder.HighestAmount); sortExpanded = false },
                             )
                             DropdownMenuItem(
-                                text = { Text("Lowest amount first") },
+                                text = { Text(stringResource(R.string.sort_lowest_amount)) },
                                 onClick = { viewModel.setSortOrder(SortOrder.LowestAmount); sortExpanded = false },
                             )
                         }
                     }
 
                     var editingLimit by remember { mutableStateOf(false) }
+                    var limitInput by remember { mutableStateOf("") }
                     if (editingLimit) {
                         OutlinedTextField(
-                            value = currentPageLimit.toString(),
-                            onValueChange = { n ->
-                                val parsed = n.toIntOrNull()
-                                if (parsed != null && parsed > 0) viewModel.setPageLimit(parsed)
-                            },
+                            value = limitInput,
+                            onValueChange = { limitInput = it.filter(Char::isDigit) },
+                            label = { Text(stringResource(R.string.page_size)) },
                             singleLine = true,
-                            modifier = Modifier.width(72.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.width(120.dp),
                             textStyle = MaterialTheme.typography.bodySmall,
                         )
-                        TextButton(onClick = { editingLimit = false }) {
-                            Text("Done", style = MaterialTheme.typography.bodySmall)
+                        TextButton(
+                            onClick = {
+                                val parsed = limitInput.toIntOrNull()
+                                if (parsed != null && parsed > 0) {
+                                    viewModel.setPageLimit(parsed)
+                                    editingLimit = false
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.done), style = MaterialTheme.typography.bodySmall)
                         }
                     } else {
-                        TextButton(onClick = { editingLimit = true }) {
-                            Text("${currentPageLimit} per page", style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(
+                            onClick = {
+                                limitInput = currentPageLimit.toString()
+                                editingLimit = true
+                            },
+                        ) {
+                            Text(
+                                stringResource(R.string.page_per_page, currentPageLimit),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
@@ -293,8 +336,9 @@ fun MainScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp),
                 ) {
-                    itemsIndexed(entries) { index, entry ->
+                    itemsIndexed(entries, key = { _, entry -> entry.lineOffset }) { index, entry ->
                         TransactionRow(
                             entry = entry,
                             onEdit = { editingIndex = index },
@@ -376,11 +420,12 @@ fun MainScreen(
     }
 }
 
+@Composable
 private fun sortLabel(key: SortOrder): String = when (key) {
-    SortOrder.NewestFirst -> "Newest first"
-    SortOrder.OldestFirst -> "Oldest first"
-    SortOrder.HighestAmount -> "Highest amount first"
-    SortOrder.LowestAmount -> "Lowest amount first"
+    SortOrder.NewestFirst -> stringResource(R.string.sort_newest_first)
+    SortOrder.OldestFirst -> stringResource(R.string.sort_oldest_first)
+    SortOrder.HighestAmount -> stringResource(R.string.sort_highest_amount)
+    SortOrder.LowestAmount -> stringResource(R.string.sort_lowest_amount)
 }
 
 @Composable
@@ -394,37 +439,37 @@ private fun MainBottomBar(
     NavigationBar {
         BottomNavItem(
             icon = Lucide.Tags,
-            label = "Rules",
+            label = stringResource(R.string.nav_rules),
             selected = route == Screen.CategorizationRules.route,
             onClick = { navController.navigate(Screen.CategorizationRules.route) },
         )
         BottomNavItem(
             icon = Lucide.List,
-            label = "Journal",
+            label = stringResource(R.string.nav_journal),
             selected = route == Screen.RawJournal.route,
             onClick = { navController.navigate(Screen.RawJournal.route) },
         )
         BottomNavItem(
             icon = Lucide.Bell,
-            label = "Sources",
+            label = stringResource(R.string.nav_sources),
             selected = route == Screen.NotificationSources.route,
             onClick = { navController.navigate(Screen.NotificationSources.route) },
         )
         BottomNavItem(
             icon = Lucide.ScrollText,
-            label = "Logs",
+            label = stringResource(R.string.logs),
             selected = route == Screen.Logs.route,
             onClick = { navController.navigate(Screen.Logs.route) },
         )
         BottomNavItem(
             icon = Lucide.Bot,
-            label = "Test",
+            label = stringResource(R.string.nav_test),
             selected = false,
             onClick = onSimulate,
         )
         BottomNavItem(
             icon = Lucide.Settings,
-            label = "Settings",
+            label = stringResource(R.string.settings),
             selected = route == Screen.Settings.route,
             onClick = { navController.navigate(Screen.Settings.route) },
         )
@@ -440,7 +485,7 @@ private fun RowScope.BottomNavItem(
 ) {
     NavigationBarItem(
         icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
         selected = selected,
         onClick = onClick,
     )
@@ -508,4 +553,44 @@ private fun SimulateNotificationDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
         },
     )
+}
+
+@Composable
+private fun ListenerHeartbeatBanner(onDismiss: () -> Unit, context: android.content.Context) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clickable {
+                context.startActivity(
+                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                )
+                onDismiss()
+            },
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.listener_needs_attention),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            IconButton(
+                onClick = onDismiss,
+            ) {
+                Icon(
+                    imageVector = Lucide.X,
+                    contentDescription = stringResource(R.string.dismiss),
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+    }
 }
