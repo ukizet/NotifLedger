@@ -11,3 +11,7 @@ local.properties
 
 # Local device screenshots (contain real transaction data)
 notifledger-screenshots/
+
+# Signing material must never be committed
+*.jks
+*.keystore
