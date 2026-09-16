@@ -2,7 +2,7 @@
 description: Performance Profiler
 mode: subagent
 permission:
-    edit: deny
+    edit: allow
     bash: allow
 ---
 

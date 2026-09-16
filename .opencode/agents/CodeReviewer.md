@@ -2,7 +2,7 @@
 description: Reviews code for quality and best practices
 mode: subagent
 permission:
-    edit: deny
+    edit: allow
     bash: allow
 ---
 

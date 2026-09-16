@@ -14,9 +14,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.notifledger.app.NotifLedgerApp
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.log.AppLogger
@@ -31,9 +31,6 @@ import org.notifledger.app.settings.SettingsManager
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val settings = SettingsManager(application)
-
-    /** Serializes journal read-modify-write so concurrent edits can't lose entries. */
-    private val journalMutex = Mutex()
 
     /** Captured so we can unsubscribe in [onCleared] (AppLogger outlives the ViewModel). */
     private var logSubscription: ((List<LogEntry>) -> Unit)? = null
@@ -103,6 +100,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val notificationSources = settings.notificationSources.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList()
+    )
+
+    val lastListenerConnectedAt = settings.lastListenerConnectedAt.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), null
     )
 
     val logEntries: StateFlow<List<LogEntry>>
@@ -187,46 +188,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addTransaction(tx: Transaction) {
         viewModelScope.launch {
-            journalMutex.withLock {
+            val app = getApplication<NotifLedgerApp>()
+            app.journalWriteMutex.withLock {
                 val path = settings.journalPath.first()
                 if (path.isBlank()) return@withLock
                 val existing = readJournalContent(path) ?: return@withLock
-                val updated = JournalWriter.appendToContent(existing, tx)
-                emitSaveResult(writeJournalContent(path, updated))
-                _allEntries.value = JournalWriter.readAll(updated)
+                val result = JournalWriter.appendToContent(existing, tx)
+                emitSaveResult(writeJournalContent(path, result.content))
+                _allEntries.value = result.entries
             }
         }
     }
 
     fun editTransaction(offset: Int, tx: Transaction) {
         viewModelScope.launch {
-            journalMutex.withLock {
+            val app = getApplication<NotifLedgerApp>()
+            app.journalWriteMutex.withLock {
                 val path = settings.journalPath.first()
                 if (path.isBlank()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
-                val updated = JournalWriter.replaceInContent(content, offset, tx)
-                emitSaveResult(writeJournalContent(path, updated))
-                _allEntries.value = JournalWriter.readAll(updated)
+                val result = JournalWriter.replaceInContent(content, offset, tx)
+                emitSaveResult(writeJournalContent(path, result.content))
+                _allEntries.value = result.entries
             }
         }
     }
 
     fun deleteTransaction(offset: Int) {
         viewModelScope.launch {
-            journalMutex.withLock {
+            val app = getApplication<NotifLedgerApp>()
+            app.journalWriteMutex.withLock {
                 val path = settings.journalPath.first()
                 if (path.isBlank()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
-                val lines = content.lines().toMutableList()
-                val entryLineCount = JournalWriter.countEntryLines(lines, offset)
-                repeat(entryLineCount) { if (offset < lines.size) lines.removeAt(offset) }
-                // Remove the blank line separator that follows
-                if (offset < lines.size && lines[offset].isBlank()) {
-                    lines.removeAt(offset)
-                }
-                val updated = lines.joinToString("\n")
-                if (writeJournalContent(path, updated)) emitMessage("Deleted") else emitMessage("Delete failed — see Logs")
-                _allEntries.value = JournalWriter.readAll(updated)
+                val result = JournalWriter.deleteFromContent(content, offset)
+                if (writeJournalContent(path, result.content)) emitMessage("Deleted") else emitMessage("Delete failed — see Logs")
+                _allEntries.value = result.entries
             }
         }
     }
@@ -259,7 +256,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return "No number found in notification text."
         }
 
-        return journalMutex.withLock {
+        val app = getApplication<NotifLedgerApp>()
+        return app.journalWriteMutex.withLock {
             val path = settings.journalPath.first()
             if (path.isBlank()) {
                 AppLogger.warn("Simulate", "No journal file set")
@@ -267,12 +265,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@withLock "No journal file set."
             }
             val existing = readJournalContent(path) ?: return@withLock "Read failed — see Logs"
-            val updated = JournalWriter.appendToContent(existing, result)
-            if (!writeJournalContent(path, updated)) {
+            val writeResult = JournalWriter.appendToContent(existing, result)
+            if (!writeJournalContent(path, writeResult.content)) {
                 emitMessage("Save failed — see Logs")
                 return@withLock "Save failed — see Logs"
             }
-            _allEntries.value = JournalWriter.readAll(updated)
+            _allEntries.value = writeResult.entries
             val msg = "Written: ${result.date} ${result.payee} — ${result.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}"
             AppLogger.info("Simulate", msg)
             emitMessage("Simulated: $msg")

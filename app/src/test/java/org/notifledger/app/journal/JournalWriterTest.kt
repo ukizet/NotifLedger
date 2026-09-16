@@ -109,7 +109,7 @@ class JournalWriterTest {
                 Posting("assets:bank:checking", "", "NOK"),
             ),
         )
-        val result = JournalWriter.appendToContent(existing, tx)
+        val result = JournalWriter.appendToContent(existing, tx).content
         assertEquals(true, result.contains("2026-07-13 Kiwi"))
         assertEquals(true, result.contains("95.00 NOK"))
         assertEquals(true, result.contains("-95.00 NOK"))
@@ -126,7 +126,7 @@ class JournalWriterTest {
                 Posting("assets:bank:checking", "", "NOK"),
             ),
         )
-        val result = JournalWriter.replaceInContent(content, 0, tx)
+        val result = JournalWriter.replaceInContent(content, 0, tx).content
         assertEquals(true, result.contains("200.00 NOK"))
         assertEquals(true, result.contains("-200.00 NOK"))
         assertEquals(false, result.contains("184.50"))
@@ -171,7 +171,7 @@ class JournalWriterTest {
                 Posting("assets:bank:checking", "-200.00", "NOK"),
             ),
         )
-        val result = JournalWriter.replaceInContent(content, 0, tx)
+        val result = JournalWriter.replaceInContent(content, 0, tx).content
         val lines = result.lines()
         assertEquals("blank line separator between entries must be preserved", "", lines[3])
         assertEquals("second entry should follow the blank separator", "2026-07-13 Kiwi", lines[4])
@@ -199,7 +199,7 @@ class JournalWriterTest {
                 Posting("assets:bank:checking", "-100.00", "NOK"),
             ),
         )
-        val result = JournalWriter.replaceInContent(content, 4, tx)
+        val result = JournalWriter.replaceInContent(content, 4, tx).content
         val lines = result.lines()
         assertEquals("blank line separator between entries must be preserved", "", lines[3])
         assertEquals("first entry unchanged", "2026-07-12 Rema 1000", lines[0])
@@ -227,7 +227,7 @@ class JournalWriterTest {
                 Posting("assets:bank:checking", "-100.00", "NOK"),
             ),
         )
-        val result = JournalWriter.replaceInContent(content, 4, tx)
+        val result = JournalWriter.replaceInContent(content, 4, tx).content
         val lines = result.lines()
         assertEquals(7, lines.size)
         assertEquals("blank line separator between entries must be preserved", "", lines[3])
@@ -250,5 +250,76 @@ class JournalWriterTest {
         )
         val count = JournalWriter.countEntryLines(lines, 0)
         assertEquals(3, count)  // date line + 2 posting lines; blank line NOT counted
+    }
+
+    @Test
+    fun `deleteFromContent removes entry and following blank line`() {
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n")
+        val result = JournalWriter.deleteFromContent(content, 0).content
+        assertEquals(false, result.contains("Rema 1000"))
+        assertEquals(true, result.contains("2026-07-13 Kiwi"))
+        // No blank line before the remaining entry
+        val lines = result.lines()
+        assertEquals("2026-07-13 Kiwi", lines[0])
+    }
+
+    @Test
+    fun `deleteFromContent removes last entry and trailing blank line`() {
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n")
+        val result = JournalWriter.deleteFromContent(content, 4).content
+        assertEquals(true, result.contains("2026-07-12 Rema 1000"))
+        assertEquals(false, result.contains("Kiwi"))
+        // Result should not end with a blank line
+        assertEquals(false, result.endsWith("\n"))
+    }
+
+    @Test
+    fun `deleteFromContent removes last remaining entry and trailing blank line`() {
+        val content = "2026-07-12 Rema 1000\n    expenses:groceries  184.50 NOK\n    assets:bank:checking  -184.50 NOK\n"
+        val result = JournalWriter.deleteFromContent(content, 0).content
+        assertEquals("", result)
+    }
+
+    @Test
+    fun `deleteFromContent single entry without trailing newline`() {
+        val content = "2026-07-12 Rema 1000\n    expenses:groceries  184.50 NOK\n    assets:bank:checking  -184.50 NOK"
+val result = JournalWriter.deleteFromContent(content, 0).content
+        assertEquals("", result)
+    }
+
+    @Test
+    fun `deleteFromContent middle entry removes both blank lines`() {
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n" +
+                "\n" +
+                "2026-07-14 Extra\n" +
+                "    expenses:groceries               50.00 NOK\n" +
+                "    assets:bank:checking             -50.00 NOK\n")
+        val result = JournalWriter.deleteFromContent(content, 4).content
+        assertEquals(false, result.contains("Kiwi"))
+        assertEquals(true, result.contains("2026-07-12 Rema 1000"))
+        assertEquals(true, result.contains("2026-07-14 Extra"))
+        val lines = result.lines()
+        val remaIdx = lines.indexOfFirst { it.startsWith("2026-07-12") }
+        val extraIdx = lines.indexOfFirst { it.startsWith("2026-07-14") }
+        assertEquals(3, extraIdx - remaIdx)
+        assertEquals("2026-07-14 Extra", lines[remaIdx + 3])
     }
 }

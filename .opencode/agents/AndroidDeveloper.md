@@ -1,7 +1,7 @@
 ---
 description: Main Android Developer
 mode: subagent
-model: z-ai/glm-5.2
+model: deepseek/deepseek-v4-flash
 permission:
     edit: allow
     bash: allow

@@ -4,22 +4,41 @@ import android.app.Application
 import android.net.Uri
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
 import org.notifledger.app.log.AppLogger
+import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.notification.NotificationHelper
+import org.notifledger.app.parser.RuleIO
 import org.notifledger.app.settings.SettingsManager
+import java.io.File
 
 class NotifLedgerApp : Application() {
 
+    /** Shared mutex for journal read-modify-write — used by both NotifListener and MainViewModel. */
+    val journalWriteMutex = Mutex()
+
     lateinit var settings: SettingsManager
         private set
+
+    private var cachedRules: List<CategorizationRule> = emptyList()
 
     override fun onCreate() {
         super.onCreate()
         AppLogger.info("App", "Application starting")
         settings = SettingsManager(this)
+        cachedRules = loadRules()
         NotificationHelper.showListeningNotification(this)
         AppLogger.info("App", "Application started")
     }
+
+    private fun loadRules(): List<CategorizationRule> {
+        val dir = File(filesDir, "rules")
+        dir.mkdirs()
+        return RuleIO.loadCategorizationRules(dir)
+    }
+
+    /** Used by NotifListener to get categorization rules (cache, reloaded on process start). */
+    fun getCategorizationRules(): List<CategorizationRule> = cachedRules
 
     /** Used by NotifListener to get the current journal path as a Uri. */
     fun getJournalUri(): Uri? {

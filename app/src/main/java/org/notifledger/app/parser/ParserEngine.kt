@@ -48,7 +48,8 @@ object ParserEngine {
      * Handles: "1234", "1 234", "1234,56", "1234.56"
      */
     private fun findNumber(text: String): String? {
-        val numberPattern = Regex("""\d[\d\s.,]*""")
         return numberPattern.find(text)?.value
     }
+
+    private val numberPattern = Regex("""\d[\d\s.,]*""")
 }

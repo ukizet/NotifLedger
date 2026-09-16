@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +57,12 @@ class SettingsManager(private val context: Context) {
             if (raw.isBlank()) emptyList() else raw.split(",").map { it.trim() }
         }
 
+    /** Timestamp of the last successful [org.notifledger.app.notification.NotifListener.onListenerConnected] call, or null. */
+    val lastListenerConnectedAt: Flow<Long?>
+        get() = context.dataStore.data.map { prefs ->
+            prefs[LAST_LISTENER_CONNECTED_AT]
+        }
+
     suspend fun setJournalPath(path: String) {
         context.dataStore.edit { prefs ->
             prefs[JOURNAL_PATH] = path
@@ -92,6 +99,12 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setLastListenerConnectedAt(timestamp: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[LAST_LISTENER_CONNECTED_AT] = timestamp
+        }
+    }
+
     companion object {
         private val JOURNAL_PATH = stringPreferencesKey("journal_path")
         private val DEFAULT_ACCOUNT = stringPreferencesKey("default_account")
@@ -99,6 +112,7 @@ class SettingsManager(private val context: Context) {
         private val NOTIF_SOURCES = stringPreferencesKey("notification_sources")
         private val SORT_ORDER = stringPreferencesKey("sort_order")
         private val PAGE_LIMIT = intPreferencesKey("page_limit")
+        private val LAST_LISTENER_CONNECTED_AT = longPreferencesKey("last_listener_connected_at")
 
         private const val DEFAULT_ACCOUNT_VALUE = "assets:bank:checking"
         private const val DEFAULT_CURRENCY_VALUE = "NOK"

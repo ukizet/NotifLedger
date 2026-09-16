@@ -11,6 +11,16 @@ import org.notifledger.app.model.Transaction
  */
 object JournalWriter {
 
+    private val dateLineRegex = Regex("^(\\d{4}-\\d{2}-\\d{2})\\s+(.*)")
+    private val postingLine4SpaceRegex = Regex("^\\s{4,}.*")
+    private val postingLineTabRegex = Regex("^\\t+.*")
+    private val postingLineLowercaseRegex = Regex("^\\s+[a-z].*")
+    private val postingSplitRegex = Regex("\\s{2,}|\\t")
+    private val amountWithCurrencyRegex = Regex("^(-?)([\\d.,]+)\\s*([a-zA-Z]+)$")
+    private val amountWithCurrencyNoSignRegex = Regex("([\\d.,]+)\\s*([a-zA-Z]+)$")
+    private val amountOnlyRegex = Regex("^(-?)([\\d.,]+)$")
+    private val entryDateRegex = Regex("^\\d{4}-\\d{2}-\\d{2}\\s")
+
     /**
      * Format a transaction as an hledger journal entry string.
      *
@@ -56,31 +66,50 @@ object JournalWriter {
     /**
      * Append a transaction to existing journal content.
      */
-    fun appendToContent(existingContent: String, tx: Transaction): String {
+    fun appendToContent(existingContent: String, tx: Transaction): JournalWriteResult {
         val entry = format(tx)
-        return existingContent.trimEnd() + "\n\n" + entry + "\n"
+        val content = existingContent.trimEnd() + "\n\n" + entry + "\n"
+        val existingEntries = readAll(existingContent)
+        val newEntryLineOffset = existingContent.trimEnd().lines().size + 1
+        val newEntry = JournalEntry(tx.date, tx.payee, tx.postings, newEntryLineOffset)
+        return JournalWriteResult(content, existingEntries + newEntry)
     }
 
     /**
      * Replace a transaction at a given line offset in the journal content.
      */
-    fun replaceInContent(content: String, lineOffset: Int, tx: Transaction): String {
+    fun replaceInContent(content: String, lineOffset: Int, tx: Transaction): JournalWriteResult {
         val lines = content.lines().toMutableList()
-        val entryLineCount = countEntryLines(lines, lineOffset)
-        val newEntry = format(tx).lines()
+        val oldLineCount = countEntryLines(lines, lineOffset)
+        val newEntryStr = format(tx)
+        val newLineCount = newEntryStr.lines().size
+        val delta = newLineCount - oldLineCount
 
         // Remove old entry lines
-        repeat(entryLineCount) { if (lineOffset < lines.size) lines.removeAt(lineOffset) }
+        repeat(oldLineCount) { if (lineOffset < lines.size) lines.removeAt(lineOffset) }
         // Insert new entry lines
-        newEntry.reversed().forEach { lines.add(lineOffset, it) }
+        newEntryStr.lines().reversed().forEach { lines.add(lineOffset, it) }
 
         // Ensure blank line separator after the replaced entry
-        val insertEnd = lineOffset + newEntry.size
+        val insertEnd = lineOffset + newLineCount
         if (insertEnd < lines.size && lines[insertEnd].isNotBlank()) {
             lines.add(insertEnd, "")
         }
 
-        return lines.joinToString("\n")
+        val newContent = lines.joinToString("\n")
+
+        // Build updated entries list with correct lineOffsets
+        val existingEntries = readAll(content)
+        val newEntry = JournalEntry(tx.date, tx.payee, tx.postings, lineOffset)
+        val newEntries = existingEntries.map { entry ->
+            when {
+                entry.lineOffset == lineOffset -> newEntry
+                entry.lineOffset > lineOffset -> entry.copy(lineOffset = entry.lineOffset + delta)
+                else -> entry
+            }
+        }
+
+        return JournalWriteResult(newContent, newEntries)
     }
 
     /**
@@ -107,7 +136,7 @@ object JournalWriter {
     /** Parse a single journal entry starting at line i. Returns null if line i is not a date line. */
     private fun parseEntry(lines: List<String>, startIndex: Int): ParsedEntry? {
         val line = lines[startIndex].trim()
-        val dateMatch = Regex("^(\\d{4}-\\d{2}-\\d{2})\\s+(.*)").find(line) ?: return null
+        val dateMatch = dateLineRegex.find(line) ?: return null
         val date = dateMatch.groupValues[1]
         val payeeRaw = dateMatch.groupValues[2].substringBefore("  ;").trim()
 
@@ -130,7 +159,7 @@ object JournalWriter {
         while (j < lines.size) {
             val next = lines[j]
             if (next.isBlank()) { j++; break }
-            if (next.matches(Regex("^\\s{4,}.*")) || next.matches(Regex("^\\t+.*")) || next.matches(Regex("^\\s+[a-z].*"))) {
+            if (next.matches(postingLine4SpaceRegex) || next.matches(postingLineTabRegex) || next.matches(postingLineLowercaseRegex)) {
                 postingLines.add(next.trim())
                 j++
             } else {
@@ -156,7 +185,7 @@ object JournalWriter {
      * Returns null if the line does not contain at least an account name.
      */
     private fun parsePosting(line: String): Posting? {
-        val parts = line.split(Regex("\\s{2,}|\\t")).filter { it.isNotBlank() }
+        val parts = line.split(postingSplitRegex).filter { it.isNotBlank() }
         if (parts.isEmpty()) return null
         val account = parts[0].trim()
         if (parts.size < 2) {
@@ -179,8 +208,8 @@ object JournalWriter {
      * Returns a pair of (amountString, currency) or null if no valid amount found.
      */
     private fun parsePostingAmount(amountStr: String): Pair<String, String>? {
-        val amountMatch = Regex("^(-?)([\\d.,]+)\\s*([a-zA-Z]+)$").find(amountStr)
-            ?: Regex("([\\d.,]+)\\s*([a-zA-Z]+)$").find(amountStr)
+        val amountMatch = amountWithCurrencyRegex.find(amountStr)
+            ?: amountWithCurrencyNoSignRegex.find(amountStr)
         if (amountMatch != null) {
             val neg = if (amountMatch.groupValues[1] == "-") "-" else ""
             val num = amountMatch.groupValues[2].replace(",", ".")
@@ -188,7 +217,7 @@ object JournalWriter {
             return Pair(neg + num, cur)
         }
         // Try just a number without currency
-        val numMatch = Regex("^(-?)([\\d.,]+)$").find(amountStr)
+        val numMatch = amountOnlyRegex.find(amountStr)
         if (numMatch != null) {
             val neg = if (numMatch.groupValues[1] == "-") "-" else ""
             val num = numMatch.groupValues[2].replace(",", ".")
@@ -202,10 +231,43 @@ object JournalWriter {
         for (k in (startOffset + 1) until lines.size) {
             val l = lines[k]
             if (l.isBlank()) { break }
-            if (l.matches(Regex("^\\d{4}-\\d{2}-\\d{2}\\s"))) break
+            if (l.matches(entryDateRegex)) break
             count++
         }
         return count
+    }
+
+    fun deleteFromContent(content: String, lineOffset: Int): JournalWriteResult {
+        val lines = content.lines().toMutableList()
+        val entryLineCount = countEntryLines(lines, lineOffset)
+        repeat(entryLineCount) { if (lineOffset < lines.size) lines.removeAt(lineOffset) }
+        var extraRemoved = 0
+        // Remove blank line separator that follows the entry
+        if (lineOffset < lines.size && lines[lineOffset].isBlank()) {
+            lines.removeAt(lineOffset)
+            extraRemoved++
+        }
+        // Remove blank line separator that precedes the entry
+        if (lineOffset > 0 && lines[lineOffset - 1].isBlank()) {
+            lines.removeAt(lineOffset - 1)
+            extraRemoved++
+        }
+        val newContent = lines.joinToString("\n")
+        val totalRemoved = entryLineCount + extraRemoved
+
+        // Build updated entries list with correct lineOffsets
+        val existingEntries = readAll(content)
+        val newEntries = existingEntries
+            .filter { it.lineOffset != lineOffset }
+            .map { entry ->
+                if (entry.lineOffset > lineOffset) {
+                    entry.copy(lineOffset = entry.lineOffset - totalRemoved)
+                } else {
+                    entry
+                }
+            }
+
+        return JournalWriteResult(newContent, newEntries)
     }
 
     private fun pad(s: String, target: Int): String {
@@ -219,4 +281,12 @@ data class JournalEntry(
     val payee: String,
     val postings: List<Posting>,
     val lineOffset: Int,
+)
+
+/**
+ * Result of a journal write operation containing updated content and parsed entries.
+ */
+data class JournalWriteResult(
+    val content: String,
+    val entries: List<JournalEntry>,
 )

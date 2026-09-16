@@ -91,6 +91,12 @@ function canEmailUser(user) {
   or pattern used to build it.
 - No file should require scrolling to understand its purpose. If it does,
   split it.
+- **Maximum 1000 lines per file.** If a file exceeds this, split it into
+  multiple files.
+- **Nesting depth: keep it shallow.** 3–4 levels of nesting (`if` inside
+  `loop` inside `when` inside `if`) is already deep — extract the body or
+  invert the condition. Code should grow **vertically** (more functions,
+  more files), not **horizontally** (more nesting, more indentation).
 - Group by feature, not by type (`user/` not `controllers/`, `models/`,
   `views/` scattered across the repo).
 
