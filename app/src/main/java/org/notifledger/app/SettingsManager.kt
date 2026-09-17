@@ -50,11 +50,25 @@ class SettingsManager(private val context: Context) {
             prefs[PAGE_LIMIT] ?: 20
         }
 
+    /** Max filter chips shown on the main screen. */
+    val filterRowLimit: Flow<Int>
+        get() = context.dataStore.data.map { prefs ->
+            prefs[FILTER_ROW_LIMIT] ?: DEFAULT_FILTER_ROW_LIMIT
+        }
+
     /** Comma-separated list of allowed notification source package names. */
     val notificationSources: Flow<List<String>>
         get() = context.dataStore.data.map { prefs ->
-            val raw = prefs[NOTIF_SOURCES] ?: ""
-            if (raw.isBlank()) emptyList() else raw.split(",").map { it.trim() }
+            SettingsCodecs.decodeSources(prefs[NOTIF_SOURCES] ?: "")
+        }
+
+    /**
+     * Internal bookkeeping for notification dedup: the keys of recently
+     * processed notifications, so the same event isn't journaled twice.
+     */
+    val processedNotificationIds: Flow<String>
+        get() = context.dataStore.data.map { prefs ->
+            prefs[PROCESSED_NOTIFICATION_IDS] ?: ""
         }
 
     /** Timestamp of the last successful [org.notifledger.app.notification.NotifListener.onListenerConnected] call, or null. */
@@ -93,9 +107,21 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setFilterRowLimit(limit: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[FILTER_ROW_LIMIT] = SettingsCodecs.normalizeFilterLimit(limit)
+        }
+    }
+
     suspend fun setNotificationSources(sources: List<String>) {
         context.dataStore.edit { prefs ->
-            prefs[NOTIF_SOURCES] = sources.joinToString(",")
+            prefs[NOTIF_SOURCES] = SettingsCodecs.encodeSources(sources)
+        }
+    }
+
+    suspend fun setProcessedNotificationIds(raw: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PROCESSED_NOTIFICATION_IDS] = raw
         }
     }
 
@@ -112,7 +138,11 @@ class SettingsManager(private val context: Context) {
         private val NOTIF_SOURCES = stringPreferencesKey("notification_sources")
         private val SORT_ORDER = stringPreferencesKey("sort_order")
         private val PAGE_LIMIT = intPreferencesKey("page_limit")
+        private val FILTER_ROW_LIMIT = intPreferencesKey("filter_row_limit")
+        private val PROCESSED_NOTIFICATION_IDS = stringPreferencesKey("processed_notification_ids")
         private val LAST_LISTENER_CONNECTED_AT = longPreferencesKey("last_listener_connected_at")
+
+        const val DEFAULT_FILTER_ROW_LIMIT = 5
 
         private const val DEFAULT_ACCOUNT_VALUE = "assets:bank:checking"
         private const val DEFAULT_CURRENCY_VALUE = "NOK"

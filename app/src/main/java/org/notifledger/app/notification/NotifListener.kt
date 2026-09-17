@@ -21,20 +21,36 @@ import org.notifledger.app.model.Transaction
 class NotifListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        handleNotification(sbn)
+    }
+
+    private fun handleNotification(sbn: StatusBarNotification) {
         val app = application as? NotifLedgerApp ?: return
 
         val allowedPackages = app.getAllowedNotificationPackages()
+        // Disallowed notifications are not recorded, so allowlisting an app later
+        // can still capture what is currently in the shade.
+        if (!NotificationHandler.shouldProcess(sbn.packageName, allowedPackages)) return
+
         val journalUri = app.getJournalUri()
         if (journalUri == null) {
             AppLogger.warn("Notif", "No journal URI set — cannot write")
             return
         }
-        val defaultAccount = app.getDefaultAccount()
-        val rules = app.getCategorizationRules()
+
+        // Listener callbacks are serialized on the main looper, so this read and
+        // the persist below cannot interleave with each other.
+        val updatedRaw = NotificationDedup.add(
+            app.getProcessedNotificationIds(),
+            NotificationDedup.notificationId(sbn.postTime, sbn.key),
+        ) ?: return
 
         val extras = sbn.notification.extras
         val title = extras.getString(EXTRA_TITLE) ?: return
         val text = extras.getString(EXTRA_TEXT) ?: ""
+
+        val defaultAccount = app.getDefaultAccount()
+        val rules = app.getCategorizationRules()
 
         val tx = NotificationHandler.processNotification(
             packageName = sbn.packageName,
@@ -49,15 +65,22 @@ class NotifListener : NotificationListenerService() {
         // per design §4.1, so we never log the body.
         AppLogger.info("Notif", "Notification from ${sbn.packageName}")
 
-        writeToJournal(journalUri, tx.copy(source = Source.Notification))
+        if (!writeToJournal(journalUri, tx.copy(source = Source.Notification))) return
         Log.d(TAG, "Wrote transaction to journal: ${tx.payee}")
         AppLogger.info("Notif", "Wrote transaction: ${tx.payee} — ${tx.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}")
+
+        try {
+            runBlocking { app.settings.setProcessedNotificationIds(updatedRaw) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to persist dedup state", e)
+            AppLogger.error("Notif", "Failed to persist dedup state: ${e.message}")
+        }
     }
 
     // Uses the shared app-level mutex so UI writes and notification writes don't interleave.
-    private fun writeToJournal(uri: Uri, tx: Transaction) {
-        val app = application as? NotifLedgerApp ?: return
-        runBlocking(Dispatchers.IO) {
+    private fun writeToJournal(uri: Uri, tx: Transaction): Boolean {
+        val app = application as? NotifLedgerApp ?: return false
+        return runBlocking(Dispatchers.IO) {
             app.journalWriteMutex.withLock {
                 try {
                     val existing = contentResolver.openInputStream(uri)?.use {
@@ -66,10 +89,11 @@ class NotifListener : NotificationListenerService() {
                     val updated = JournalWriter.appendToContent(existing, tx)
                     contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
                         it.write(updated.content)
-                    }
+                    } != null
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to write to journal", e)
                     AppLogger.error("Notif", "Failed to write to journal: ${e.message}")
+                    false
                 }
             }
         }
@@ -83,6 +107,22 @@ class NotifListener : NotificationListenerService() {
         Log.d(TAG, "Notification listener connected")
         AppLogger.info("Notif", "Notification listener connected")
         NotificationHelper.showListeningNotification(this)
+        scanActiveNotifications()
+    }
+
+    // Catches up on notifications posted while the app wasn't running; only
+    // notifications still in the shade are available.
+    private fun scanActiveNotifications() {
+        val active = try {
+            activeNotifications
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read active notifications", e)
+            AppLogger.error("Notif", "Failed to read active notifications: ${e.message}")
+            return
+        }
+        if (active == null || active.isEmpty()) return
+        AppLogger.info("Notif", "Scanning ${active.size} active notifications")
+        active.sortedBy { it.postTime }.forEach { handleNotification(it) }
     }
 
     override fun onListenerDisconnected() {

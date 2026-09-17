@@ -45,8 +45,6 @@
     <string name="cd_no_sources">No notification sources selected — tap to open settings</string>
     <string name="cd_listening">Listening for notifications</string>
     <string name="edit_transaction">Edit transaction</string>
-    <string name="delete_transaction">Delete transaction</string>
-    <string name="delete_transaction_confirm">Delete %1$s %2$s?</string>
     <string name="simulate_notification">Simulate notification</string>
     <string name="simulate_intro">Paste a notification. The app will find the first number as the amount and use the title as the payee.</string>
     <string name="notif_title_label">Notification title</string>
@@ -62,6 +60,21 @@
     <string name="sort_lowest_amount">Lowest amount first</string>
     <string name="page_per_page">%1$d per page</string>
     <string name="page_size">Page size</string>
+
+    <!-- Transaction filters -->
+    <string name="filter_add">Add filter</string>
+    <string name="filter_add_title">Add filter</string>
+    <string name="filter_rename_title">Rename filter</string>
+    <string name="filter_change_title">Change category</string>
+    <string name="filter_menu_rename">Rename</string>
+    <string name="filter_menu_change">Change category</string>
+    <string name="filter_menu_delete">Delete</string>
+    <string name="filter_name_label">Name</string>
+    <string name="filter_account_label">Account</string>
+    <string name="filter_account_invalid">Pick an account from the list</string>
+    <string name="filter_account_duplicate">This account is already in the row</string>
+    <string name="filter_row_limit">Max filter chips</string>
+    <string name="no_matching_transactions">No transactions match the active filters</string>
 
     <!-- Onboarding -->
     <string name="onboarding_title">Setup checklist</string>

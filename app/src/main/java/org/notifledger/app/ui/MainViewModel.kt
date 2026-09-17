@@ -14,9 +14,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.notifledger.app.NotifLedgerApp
+import org.notifledger.app.filters.FilterIO
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.log.AppLogger
@@ -24,6 +26,7 @@ import org.notifledger.app.log.LogEntry
 import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
+import org.notifledger.app.model.TransactionFilter
 import org.notifledger.app.parser.ParserEngine
 import org.notifledger.app.parser.RuleIO
 import org.notifledger.app.settings.SettingsManager
@@ -68,19 +71,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _pageLimit = MutableStateFlow(20)
     val pageLimit: StateFlow<Int> = _pageLimit.asStateFlow()
 
-    /** Sorted + limited entries ready for the UI. */
+    private val _filters = MutableStateFlow<List<TransactionFilter>>(emptyList())
+    val filters: StateFlow<List<TransactionFilter>> = _filters.asStateFlow()
+
+    private val _filterLimit = MutableStateFlow(5)
+    val filterLimit: StateFlow<Int> = _filterLimit.asStateFlow()
+
+    val hasEntries: StateFlow<Boolean> = _allEntries.map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Filtered + sorted + limited entries ready for the UI. */
     val entries: StateFlow<List<JournalEntry>> = combine(
         _allEntries,
         _sortOrder,
         _pageLimit,
-    ) { all, sort, limit ->
-        val sorted = when (sort) {
-            SortOrder.NewestFirst -> all.sortedByDescending { it.date }
-            SortOrder.OldestFirst -> all.sortedBy { it.date }
-            SortOrder.HighestAmount -> all.sortedByDescending { it.postings.firstOrNull()?.amount?.toDoubleOrNull() ?: 0.0 }
-            SortOrder.LowestAmount -> all.sortedBy { it.postings.firstOrNull()?.amount?.toDoubleOrNull() ?: 0.0 }
-        }
-        sorted.take(limit.coerceAtLeast(1))
+        _filters,
+    ) { all, sort, limit, filters ->
+        EntryList.visible(all, filters, sort, limit)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _categorizationRules = MutableStateFlow<List<CategorizationRule>>(emptyList())
@@ -140,6 +147,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val rulesDir = getRulesDir()
             _categorizationRules.value = RuleIO.loadCategorizationRules(rulesDir)
             AppLogger.info("Rules", "Loaded ${_categorizationRules.value.size} categorization rules")
+        }
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                _filters.value = FilterIO.loadFilters(getFiltersDir())
+            }
+            AppLogger.info("Filters", "Loaded ${_filters.value.size} filters")
+        }
+        viewModelScope.launch {
+            _filterLimit.value = settings.filterRowLimit.first()
+            settings.filterRowLimit.collect { limit ->
+                _filterLimit.value = limit
+                val current = _filters.value
+                if (current.size > limit) persistFilters(current.take(limit))
+            }
         }
 
         AppLogger.info("App", "MainViewModel initialized")
@@ -234,11 +255,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reloadEntries() {
         viewModelScope.launch {
-            val path = settings.journalPath.first()
-            if (path.isNotBlank()) {
-                val content = readJournalContent(path)
-                if (content != null) {
-                    _allEntries.value = JournalWriter.readAll(content)
+            val app = getApplication<NotifLedgerApp>()
+            app.journalWriteMutex.withLock {
+                val path = settings.journalPath.first()
+                if (path.isNotBlank()) {
+                    val content = readJournalContent(path)
+                    if (content != null) {
+                        _allEntries.value = JournalWriter.readAll(content)
+                    }
                 }
             }
         }
@@ -284,6 +308,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return dir
     }
 
+    private fun getFiltersDir(): java.io.File {
+        val dir = java.io.File(getApplication<Application>().filesDir, "filters")
+        dir.mkdirs()
+        return dir
+    }
+
     fun saveCategorizationRules(rules: List<CategorizationRule>) {
         viewModelScope.launch {
             val rulesDir = getRulesDir()
@@ -292,9 +322,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val filterSaveMutex = Mutex()
+
+    @Volatile
+    private var filterSaveRevision = 0
+
+    private fun persistFilters(filters: List<TransactionFilter>) {
+        _filters.value = filters
+        val revision = ++filterSaveRevision
+        viewModelScope.launch(Dispatchers.IO) {
+            filterSaveMutex.withLock {
+                if (revision == filterSaveRevision) FilterIO.saveFilters(getFiltersDir(), filters)
+            }
+        }
+    }
+
     fun getCachedCategorizationRules(): List<CategorizationRule> = _categorizationRules.value
 
     fun setNotificationSources(sources: List<String>) {
         viewModelScope.launch { settings.setNotificationSources(sources) }
+    }
+
+    fun addFilter(account: String) {
+        val trimmed = account.trim()
+        if (trimmed.isBlank()) return
+        val current = _filters.value
+        if (current.size >= _filterLimit.value) return
+        if (current.any { it.account == trimmed }) return
+        persistFilters(current + TransactionFilter(label = trimmed, account = trimmed))
+    }
+
+    fun renameFilter(index: Int, label: String) {
+        val trimmed = label.trim()
+        if (trimmed.isBlank()) return
+        val current = _filters.value
+        if (index !in current.indices) return
+        persistFilters(current.mapIndexed { i, filter ->
+            if (i == index) filter.copy(label = trimmed) else filter
+        })
+    }
+
+    fun changeFilterCategory(index: Int, account: String) {
+        val trimmed = account.trim()
+        if (trimmed.isBlank()) return
+        val current = _filters.value
+        if (index !in current.indices) return
+        val usedElsewhere = current.indices.any { i -> i != index && current[i].account == trimmed }
+        if (usedElsewhere) return
+        persistFilters(current.mapIndexed { i, filter ->
+            if (i == index) filter.copy(account = trimmed) else filter
+        })
+    }
+
+    fun deleteFilter(index: Int) {
+        val current = _filters.value
+        if (index !in current.indices) return
+        persistFilters(current.filterIndexed { i, _ -> i != index })
+    }
+
+    fun toggleFilterActive(index: Int) {
+        val current = _filters.value
+        if (index !in current.indices) return
+        persistFilters(current.mapIndexed { i, filter ->
+            if (i == index) filter.copy(isActive = !filter.isActive) else filter
+        })
+    }
+
+    fun setFilterLimit(limit: Int) {
+        viewModelScope.launch { settings.setFilterRowLimit(limit) }
     }
 }

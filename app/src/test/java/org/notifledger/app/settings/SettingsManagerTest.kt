@@ -4,71 +4,75 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Tests for SettingsManager data format logic.
+ * Tests for the notification-source format used by SettingsManager.
  *
- * The SettingsManager itself requires an Android Context, so these tests
- * verify the serialization format used for notification sources
- * (comma-separated list of package names).
+ * SettingsManager itself requires an Android Context, so the comma-separated
+ * source encoding is verified through the pure SettingsCodecs helpers it
+ * delegates to.
  */
 class SettingsManagerTest {
 
     @Test
-    fun `empty sources serialize to blank string`() {
-        val result = emptyList<String>().joinToString(",")
-        assertEquals("", result)
+    fun `empty sources encode to blank string`() {
+        assertEquals("", SettingsCodecs.encodeSources(emptyList()))
     }
 
     @Test
-    fun `single source serializes to plain package name`() {
-        val result = listOf("no.dnb.mobil").joinToString(",")
-        assertEquals("no.dnb.mobil", result)
+    fun `single source encodes to plain package name`() {
+        assertEquals("no.dnb.mobil", SettingsCodecs.encodeSources(listOf("no.dnb.mobil")))
     }
 
     @Test
-    fun `multiple sources serialize comma-separated`() {
-        val result = listOf("no.dnb.mobil", "com.vipps", "com.klarna").joinToString(",")
-        assertEquals("no.dnb.mobil,com.vipps,com.klarna", result)
+    fun `multiple sources encode comma-separated`() {
+        assertEquals(
+            "no.dnb.mobil,com.vipps,com.klarna",
+            SettingsCodecs.encodeSources(listOf("no.dnb.mobil", "com.vipps", "com.klarna")),
+        )
     }
 
     @Test
-    fun `deserialize blank to empty list`() {
-        val raw = ""
-        val result = if (raw.isBlank()) emptyList() else raw.split(",").map { it.trim() }
-        assertEquals(emptyList<String>(), result)
+    fun `decode blank to empty list`() {
+        assertEquals(emptyList<String>(), SettingsCodecs.decodeSources(""))
     }
 
     @Test
-    fun `deserialize single source`() {
-        val raw = "no.dnb.mobil"
-        val result = raw.split(",").map { it.trim() }
-        assertEquals(listOf("no.dnb.mobil"), result)
+    fun `decode single source`() {
+        assertEquals(listOf("no.dnb.mobil"), SettingsCodecs.decodeSources("no.dnb.mobil"))
     }
 
     @Test
-    fun `deserialize multiple sources`() {
-        val raw = "no.dnb.mobil,com.vipps,com.klarna"
-        val result = raw.split(",").map { it.trim() }
-        assertEquals(listOf("no.dnb.mobil", "com.vipps", "com.klarna"), result)
+    fun `decode multiple sources`() {
+        assertEquals(
+            listOf("no.dnb.mobil", "com.vipps", "com.klarna"),
+            SettingsCodecs.decodeSources("no.dnb.mobil,com.vipps,com.klarna"),
+        )
     }
 
     @Test
     fun `add source to existing list`() {
-        val sources = mutableListOf("no.dnb.mobil")
-        sources.add("com.vipps")
-        assertEquals(listOf("no.dnb.mobil", "com.vipps"), sources)
+        val sources = SettingsCodecs.decodeSources(SettingsCodecs.encodeSources(listOf("no.dnb.mobil")))
+        val updated = sources + "com.vipps"
+        assertEquals(
+            listOf("no.dnb.mobil", "com.vipps"),
+            SettingsCodecs.decodeSources(SettingsCodecs.encodeSources(updated)),
+        )
     }
 
     @Test
     fun `remove source from list`() {
-        val sources = mutableListOf("no.dnb.mobil", "com.vipps")
-        sources.remove("no.dnb.mobil")
-        assertEquals(listOf("com.vipps"), sources)
+        val sources = SettingsCodecs.decodeSources("no.dnb.mobil,com.vipps")
+        val updated = sources - "no.dnb.mobil"
+        assertEquals(
+            listOf("com.vipps"),
+            SettingsCodecs.decodeSources(SettingsCodecs.encodeSources(updated)),
+        )
     }
 
     @Test
-    fun `prevent duplicate sources`() {
-        val sources = mutableSetOf("no.dnb.mobil")
-        sources.add("no.dnb.mobil")
-        assertEquals(setOf("no.dnb.mobil"), sources)
+    fun `already selected source is not added again`() {
+        val sources = SettingsCodecs.decodeSources("no.dnb.mobil")
+        val selected = "no.dnb.mobil"
+        val updated = if (selected !in sources) sources + selected else sources
+        assertEquals("no.dnb.mobil", SettingsCodecs.encodeSources(updated))
     }
 }

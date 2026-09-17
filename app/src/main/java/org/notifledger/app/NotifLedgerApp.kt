@@ -61,4 +61,11 @@ class NotifLedgerApp : Application() {
             settings.notificationSources.first().toSet()
         } catch (_: Exception) { emptySet() }
     }
+
+    /** Used by NotifListener to get the raw processed-notification dedup state. */
+    fun getProcessedNotificationIds(): String = runBlocking {
+        try {
+            settings.processedNotificationIds.first()
+        } catch (_: Exception) { "" }
+    }
 }

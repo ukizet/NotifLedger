@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,10 +56,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.composables.icons.lucide.Bell
@@ -76,6 +80,7 @@ import org.notifledger.app.R
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
 import org.notifledger.app.notification.NotificationHandler
+import org.notifledger.app.ui.components.FilterRow
 import org.notifledger.app.ui.components.OnboardingChecklist
 import org.notifledger.app.ui.components.OnboardingItem
 import org.notifledger.app.ui.components.TransactionForm
@@ -95,6 +100,9 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit,
 ) {
     val entries by viewModel.entries.collectAsState()
+    val filters by viewModel.filters.collectAsState()
+    val filterLimit by viewModel.filterLimit.collectAsState()
+    val hasEntries by viewModel.hasEntries.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
     val notificationSources by viewModel.notificationSources.collectAsState()
     val payeeSuggestions by viewModel.existingPayees.collectAsState()
@@ -122,6 +130,15 @@ fun MainScreen(
         }
     }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.reloadEntries()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val pickFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -136,7 +153,6 @@ fun MainScreen(
     }
 
     var editingIndex by remember { mutableStateOf(-1) }
-    var deletingIndex by remember { mutableStateOf(-1) }
     var showSimulateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -216,7 +232,7 @@ fun MainScreen(
                     Text(stringResource(R.string.no_journal_selected))
                 }
             }
-        } else if (entries.isEmpty()) {
+        } else if (!hasEntries) {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                 if (listenerNeedsAttention && !listenerBannerDismissed) {
                     ListenerHeartbeatBanner(
@@ -333,17 +349,37 @@ fun MainScreen(
                     }
                 }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    contentPadding = PaddingValues(bottom = 88.dp),
-                ) {
-                    itemsIndexed(entries, key = { _, entry -> entry.lineOffset }) { index, entry ->
-                        TransactionRow(
-                            entry = entry,
-                            onEdit = { editingIndex = index },
-                            onDelete = { deletingIndex = index },
-                        )
+                FilterRow(
+                    filters = filters,
+                    maxFilters = filterLimit,
+                    accountSuggestions = accountSuggestions,
+                    onAdd = viewModel::addFilter,
+                    onRename = viewModel::renameFilter,
+                    onChangeCategory = viewModel::changeFilterCategory,
+                    onDelete = viewModel::deleteFilter,
+                    onToggle = viewModel::toggleFilterActive,
+                )
+
+                if (entries.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(stringResource(R.string.no_matching_transactions))
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(bottom = 88.dp),
+                    ) {
+                        itemsIndexed(entries, key = { _, entry -> entry.lineOffset }) { index, entry ->
+                            TransactionRow(
+                                entry = entry,
+                                onEdit = { editingIndex = index },
+                                onDelete = { viewModel.deleteTransaction(entry.lineOffset) },
+                            )
+                        }
                     }
                 }
             }
@@ -384,38 +420,6 @@ fun MainScreen(
                 )
             },
             confirmButton = {},
-        )
-    }
-
-    if (deletingIndex >= 0 && deletingIndex < entries.size) {
-        val entry = entries[deletingIndex]
-        AlertDialog(
-            onDismissRequest = { deletingIndex = -1 },
-            title = { Text(stringResource(R.string.delete_transaction)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.delete_transaction_confirm,
-                        entry.date,
-                        entry.payee,
-                    ),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteTransaction(entry.lineOffset)
-                        deletingIndex = -1
-                    },
-                ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deletingIndex = -1 }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
         )
     }
 }

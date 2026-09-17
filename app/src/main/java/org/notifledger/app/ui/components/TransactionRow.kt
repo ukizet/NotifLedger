@@ -1,13 +1,12 @@
 package org.notifledger.app.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,12 +14,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Pencil
-import com.composables.icons.lucide.Trash2
 import org.notifledger.app.R
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.log.AppLogger
@@ -37,53 +36,67 @@ fun TransactionRow(
     modifier: Modifier = Modifier,
 ) {
     val displayDate = remember(entry.date) { formatDisplayDate(entry.date) }
-    Card(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    val deleteLabel = stringResource(R.string.delete)
+    SwipeToDelete(
+        onDelete = onDelete,
+        modifier = modifier.fillMaxWidth(),
     ) {
-        Column(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .clickable(
+                    onClickLabel = stringResource(R.string.edit_transaction),
+                    onClick = onEdit,
+                )
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction(deleteLabel) {
+                            onDelete()
+                            true
+                        },
+                    )
+                },
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
             ) {
-                Text(
-                    text = displayDate,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = entry.payee,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(3f),
-                )
-                IconButton(onClick = onEdit) {
-                    Icon(Lucide.Pencil, contentDescription = stringResource(R.string.edit), tint = MaterialTheme.colorScheme.primary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = displayDate,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = entry.payee,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(3f),
+                    )
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Lucide.Trash2, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
-                }
-            }
 
-            entry.postings.forEach { posting ->
-                val displayAmount = if (posting.amount.isNotBlank()) {
-                    "${posting.amount} ${posting.currency}"
-                } else {
-                    ""
+                entry.postings.forEach { posting ->
+                    val displayAmount = if (posting.amount.isNotBlank()) {
+                        "${posting.amount} ${posting.currency}"
+                    } else {
+                        ""
+                    }
+                    Text(
+                        text = "${posting.account}: $displayAmount",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
                 }
-                Text(
-                    text = "${posting.account}: $displayAmount",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
             }
         }
     }

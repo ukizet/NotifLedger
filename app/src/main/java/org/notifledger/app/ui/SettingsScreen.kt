@@ -23,12 +23,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +56,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val defaultAccount by viewModel.defaultAccount.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
+    val filterLimit by viewModel.filterLimit.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
     val isListening = rememberListenerEnabled(context)
 
@@ -125,6 +131,66 @@ fun SettingsScreen(
                 value = defaultCurrency,
                 onSave = { scope.launch { viewModel.settings.setDefaultCurrency(it) } },
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            FilterLimitSettingRow(
+                value = filterLimit,
+                onSave = { viewModel.setFilterLimit(it) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterLimitSettingRow(value: Int, onSave: (Int) -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    var input by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.filter_row_limit), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(4.dp))
+            if (editing) {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { new -> input = new.filter { it.isDigit() } },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    TextButton(onClick = { editing = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val parsed = input.toIntOrNull()
+                            if (parsed != null && parsed > 0) {
+                                onSave(parsed)
+                                editing = false
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.save))
+                    }
+                }
+            } else {
+                Text(value.toString(), style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = {
+                    input = value.toString()
+                    editing = true
+                }) {
+                    Text(stringResource(R.string.change))
+                }
+            }
         }
     }
 }
