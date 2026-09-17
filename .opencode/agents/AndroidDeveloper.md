@@ -1,7 +1,7 @@
 ---
 description: Main Android Developer
 mode: subagent
-model: deepseek/deepseek-v4-flash
+model: openrouter/deepseek/deepseek-v4.1-flash
 permission:
     edit: allow
     bash: allow
