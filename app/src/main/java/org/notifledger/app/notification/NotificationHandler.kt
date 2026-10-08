@@ -9,11 +9,6 @@ import java.time.LocalDate
 
 object NotificationHandler {
 
-    private const val EXPENSE_ACCOUNT = "expenses:unknown"
-
-    /** How old a connected timestamp can be before we flag the listener as needing attention. */
-    private const val LISTENER_HEARTBEAT_THRESHOLD_MS = 24L * 60 * 60 * 1000 // 24 hours
-
     private const val DEFAULT_EXPENSE_ACCOUNT = "expenses:unknown"
 
     fun shouldProcess(packageName: String, allowedPackages: Set<String>): Boolean {
@@ -79,21 +74,5 @@ object NotificationHandler {
         if (!shouldProcess(packageName, allowedPackages)) return null
         return parseTransaction(title, text, defaultAccount, rules)
             ?: createBestEffortTransaction(title, defaultAccount, rules)
-    }
-
-    /**
-     * Returns true when the permission is granted and a previously recorded heartbeat is
-     * older than the threshold. A listener that has never connected is not flagged. This
-     * catches the case where the OS has silently unbound the service while leaving the
-     * permission flag on.
-     */
-    fun needsListenerAttention(
-        isPermissionGranted: Boolean,
-        lastConnectedAt: Long?,
-        now: Long = System.currentTimeMillis(),
-    ): Boolean {
-        if (!isPermissionGranted) return false
-        val connectedAt = lastConnectedAt ?: return false
-        return (now - connectedAt) > LISTENER_HEARTBEAT_THRESHOLD_MS
     }
 }

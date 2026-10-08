@@ -34,14 +34,15 @@ internal fun updatedDrag(current: Float, dragAmount: Float): Float =
 fun SwipeToDelete(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     var dragX by remember { mutableFloatStateOf(0f) }
     var isPastThreshold by remember { mutableStateOf(false) }
     val currentOnDelete by rememberUpdatedState(onDelete)
 
-    Box(
-        modifier = modifier.pointerInput(Unit) {
+    val gestureModifier = if (enabled) {
+        Modifier.pointerInput(Unit) {
             var startX = 0f
             var isArmed = false
             detectHorizontalDragGestures(
@@ -68,8 +69,12 @@ fun SwipeToDelete(
                     isPastThreshold = false
                 },
             )
-        },
-    ) {
+        }
+    } else {
+        Modifier
+    }
+
+    Box(modifier = modifier.then(gestureModifier)) {
         Box(
             modifier = Modifier
                 .matchParentSize()

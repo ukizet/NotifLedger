@@ -71,7 +71,7 @@ object JournalWriter {
         val content = existingContent.trimEnd() + "\n\n" + entry + "\n"
         val existingEntries = readAll(existingContent)
         val newEntryLineOffset = existingContent.trimEnd().lines().size + 1
-        val newEntry = JournalEntry(tx.date, tx.payee, tx.postings, newEntryLineOffset)
+        val newEntry = JournalEntry(tx.date, tx.payee, tx.postings, newEntryLineOffset, tx.note)
         return JournalWriteResult(content, existingEntries + newEntry)
     }
 
@@ -83,7 +83,6 @@ object JournalWriter {
         val oldLineCount = countEntryLines(lines, lineOffset)
         val newEntryStr = format(tx)
         val newLineCount = newEntryStr.lines().size
-        val delta = newLineCount - oldLineCount
 
         // Remove old entry lines
         repeat(oldLineCount) { if (lineOffset < lines.size) lines.removeAt(lineOffset) }
@@ -97,19 +96,20 @@ object JournalWriter {
         }
 
         val newContent = lines.joinToString("\n")
+        return JournalWriteResult(newContent, readAll(newContent))
+    }
 
-        // Build updated entries list with correct lineOffsets
-        val existingEntries = readAll(content)
-        val newEntry = JournalEntry(tx.date, tx.payee, tx.postings, lineOffset)
-        val newEntries = existingEntries.map { entry ->
-            when {
-                entry.lineOffset == lineOffset -> newEntry
-                entry.lineOffset > lineOffset -> entry.copy(lineOffset = entry.lineOffset + delta)
-                else -> entry
-            }
+    /**
+     * Apply replacements at multiple line offsets in one pass. Offsets are applied
+     * from the bottom up so earlier offsets stay valid.
+     */
+    fun replaceManyInContent(content: String, updates: Map<Int, Transaction>): JournalWriteResult {
+        if (updates.isEmpty()) return JournalWriteResult(content, readAll(content))
+        var result = JournalWriteResult(content, readAll(content))
+        for (offset in updates.keys.sortedDescending()) {
+            result = replaceInContent(result.content, offset, updates.getValue(offset))
         }
-
-        return JournalWriteResult(newContent, newEntries)
+        return result
     }
 
     /**
@@ -139,6 +139,7 @@ object JournalWriter {
         val dateMatch = dateLineRegex.find(line) ?: return null
         val date = dateMatch.groupValues[1]
         val payeeRaw = dateMatch.groupValues[2].substringBefore("  ;").trim()
+        val note = dateMatch.groupValues[2].substringAfter("  ;", "").trim()
 
         val (postingLines, nextIndex) = collectPostingLines(lines, startIndex + 1)
         val postings = postingLines.mapNotNull { parsePosting(it) }
@@ -149,6 +150,7 @@ object JournalWriter {
             postings = postings,
             lineOffset = startIndex,
             nextLineIndex = nextIndex,
+            note = note,
         )
     }
 
@@ -176,8 +178,9 @@ object JournalWriter {
         val postings: List<Posting>,
         val lineOffset: Int,
         val nextLineIndex: Int,
+        val note: String,
     ) {
-        fun toJournalEntry() = JournalEntry(date, payee, postings, lineOffset)
+        fun toJournalEntry() = JournalEntry(date, payee, postings, lineOffset, note)
     }
 
     /**
@@ -231,7 +234,7 @@ object JournalWriter {
         for (k in (startOffset + 1) until lines.size) {
             val l = lines[k]
             if (l.isBlank()) { break }
-            if (l.matches(entryDateRegex)) break
+            if (entryDateRegex.containsMatchIn(l)) break
             count++
         }
         return count
@@ -281,6 +284,7 @@ data class JournalEntry(
     val payee: String,
     val postings: List<Posting>,
     val lineOffset: Int,
+    val note: String = "",
 )
 
 /**

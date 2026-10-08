@@ -66,8 +66,8 @@ class NotifListener : NotificationListenerService() {
         AppLogger.info("Notif", "Notification from ${sbn.packageName}")
 
         if (!writeToJournal(journalUri, tx.copy(source = Source.Notification))) return
-        Log.d(TAG, "Wrote transaction to journal: ${tx.payee}")
-        AppLogger.info("Notif", "Wrote transaction: ${tx.payee} — ${tx.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}")
+        Log.d(TAG, "Transaction written to journal")
+        AppLogger.info("Notif", "Transaction written")
 
         try {
             runBlocking { app.settings.setProcessedNotificationIds(updatedRaw) }
@@ -100,10 +100,6 @@ class NotifListener : NotificationListenerService() {
     }
 
     override fun onListenerConnected() {
-        val app = application as? NotifLedgerApp
-        if (app != null) {
-            runBlocking { app.settings.setLastListenerConnectedAt(System.currentTimeMillis()) }
-        }
         Log.d(TAG, "Notification listener connected")
         AppLogger.info("Notif", "Notification listener connected")
         NotificationHelper.showListeningNotification(this)

@@ -24,7 +24,11 @@ class NotifLedgerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val logDir = File(filesDir, "logs")
+        logDir.mkdirs()
+        AppLogger.initLogFile(File(logDir, "notifledger.log"))
         AppLogger.info("App", "Application starting")
+        AppLogger.info("App", "File logging started")
         settings = SettingsManager(this)
         cachedRules = loadRules()
         NotificationHelper.showListeningNotification(this)

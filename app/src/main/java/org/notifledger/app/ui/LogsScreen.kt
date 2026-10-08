@@ -1,5 +1,6 @@
 package org.notifledger.app.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,6 +43,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.composables.icons.lucide.CircleX
 import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.Lucide
@@ -60,7 +65,18 @@ fun LogsScreen(
     val entries by viewModel.logEntries.collectAsState()
     var filterLevel by remember { mutableStateOf<LogLevel?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var rawMode by remember { mutableStateOf(false) }
+    var rawText by remember { mutableStateOf<String?>(null) }
+    var rawRefresh by remember { mutableStateOf(0) }
     val listState = rememberLazyListState()
+
+    LaunchedEffect(rawMode, rawRefresh) {
+        rawText = if (rawMode) {
+            withContext(Dispatchers.IO) { AppLogger.logFile()?.readText() }
+        } else {
+            null
+        }
+    }
 
     val filtered = remember(entries, filterLevel) {
         if (filterLevel != null) entries.filter { it.level == filterLevel } else entries
@@ -77,8 +93,8 @@ fun LogsScreen(
             }
         }
     }
-    LaunchedEffect(shouldAutoScroll.value) {
-        if (shouldAutoScroll.value) {
+    LaunchedEffect(shouldAutoScroll.value, rawMode) {
+        if (!rawMode && shouldAutoScroll.value) {
             listState.animateScrollToItem(filtered.size - 1)
         }
     }
@@ -107,76 +123,98 @@ fun LogsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilterChip(
-                    selected = filterLevel == null,
-                    onClick = { filterLevel = null },
-                    label = { Text(stringResource(R.string.filter_all)) },
+                    selected = !rawMode,
+                    onClick = { rawMode = false },
+                    label = { Text(stringResource(R.string.logs_entries)) },
                 )
                 FilterChip(
-                    selected = filterLevel == LogLevel.INFO,
-                    onClick = { filterLevel = LogLevel.INFO },
-                    label = { Text(stringResource(R.string.filter_info)) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
-                )
-                FilterChip(
-                    selected = filterLevel == LogLevel.WARN,
-                    onClick = { filterLevel = LogLevel.WARN },
-                    label = { Text(stringResource(R.string.filter_warnings)) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        // Teal/secondary reads as "less severe than error", not as a third accent category.
-                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ),
-                )
-                FilterChip(
-                    selected = filterLevel == LogLevel.ERROR,
-                    onClick = { filterLevel = LogLevel.ERROR },
-                    label = { Text(stringResource(R.string.filter_errors)) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
+                    selected = rawMode,
+                    onClick = { rawMode = true },
+                    label = { Text(stringResource(R.string.logs_raw)) },
                 )
             }
 
             Spacer(Modifier.height(8.dp))
 
-            val counts = remember(entries) {
-                val info = entries.count { it.level == LogLevel.INFO }
-                val warn = entries.count { it.level == LogLevel.WARN }
-                val error = entries.count { it.level == LogLevel.ERROR }
-                Triple(info, warn, error)
-            }
-            Text(
-                text = stringResource(R.string.log_summary, entries.size, counts.first, counts.second, counts.third),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            if (filtered.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
+            if (rawMode) {
+                RawLogView(rawText)
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = if (entries.isEmpty())
-                            stringResource(R.string.no_log_entries)
-                        else
-                            stringResource(R.string.no_log_match_filter),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    FilterChip(
+                        selected = filterLevel == null,
+                        onClick = { filterLevel = null },
+                        label = { Text(stringResource(R.string.filter_all)) },
+                    )
+                    FilterChip(
+                        selected = filterLevel == LogLevel.INFO,
+                        onClick = { filterLevel = LogLevel.INFO },
+                        label = { Text(stringResource(R.string.filter_info)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
+                    )
+                    FilterChip(
+                        selected = filterLevel == LogLevel.WARN,
+                        onClick = { filterLevel = LogLevel.WARN },
+                        label = { Text(stringResource(R.string.filter_warnings)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            // Teal/secondary reads as "less severe than error", not as a third accent category.
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
+                    )
+                    FilterChip(
+                        selected = filterLevel == LogLevel.ERROR,
+                        onClick = { filterLevel = LogLevel.ERROR },
+                        label = { Text(stringResource(R.string.filter_errors)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
                     )
                 }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    items(filtered, key = { it.sequence }) { entry ->
-                        LogEntryCard(entry)
+
+                Spacer(Modifier.height(8.dp))
+
+                val counts = remember(entries) {
+                    val info = entries.count { it.level == LogLevel.INFO }
+                    val warn = entries.count { it.level == LogLevel.WARN }
+                    val error = entries.count { it.level == LogLevel.ERROR }
+                    Triple(info, warn, error)
+                }
+                Text(
+                    text = stringResource(R.string.log_summary, entries.size, counts.first, counts.second, counts.third),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                if (filtered.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (entries.isEmpty())
+                                stringResource(R.string.no_log_entries)
+                            else
+                                stringResource(R.string.no_log_match_filter),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(filtered, key = { it.sequence }) { entry ->
+                            LogEntryCard(entry)
+                        }
                     }
                 }
             }
@@ -191,6 +229,7 @@ fun LogsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     AppLogger.clear()
+                    rawRefresh++
                     showClearConfirm = false
                 }) {
                     Text(stringResource(R.string.clear_logs), color = MaterialTheme.colorScheme.error)
@@ -202,6 +241,42 @@ fun LogsScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun RawLogView(text: String?) {
+    val fileName = AppLogger.logFile()?.name
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (fileName != null) {
+            Text(
+                text = fileName,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        if (text.isNullOrBlank()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.logs_raw_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .horizontalScroll(rememberScrollState()),
+            )
+        }
     }
 }
 

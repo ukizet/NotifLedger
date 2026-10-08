@@ -174,67 +174,6 @@ class NotificationHandlerTest {
         assertEquals(Source.Notification, result.source)
     }
 
-    // ── needsListenerAttention ───────────────────────────────────────────────
-
-    @Test
-    fun `no attention needed when permission granted and listener never connected`() {
-        assertFalse(NotificationHandler.needsListenerAttention(
-            isPermissionGranted = true,
-            lastConnectedAt = null,
-            now = 1_000_000_000_000L,
-        ))
-    }
-
-    @Test
-    fun `no attention needed when permission granted with recent timestamp`() {
-        val now = 1_000_000_000_000L
-        assertFalse(NotificationHandler.needsListenerAttention(
-            isPermissionGranted = true,
-            lastConnectedAt = now - 1000L, // 1 second ago
-            now = now,
-        ))
-    }
-
-    @Test
-    fun `no attention needed when permission false even with null timestamp`() {
-        assertFalse(NotificationHandler.needsListenerAttention(
-            isPermissionGranted = false,
-            lastConnectedAt = null,
-            now = 1_000_000_000_000L,
-        ))
-    }
-
-    @Test
-    fun `no attention needed when permission false with old timestamp`() {
-        assertFalse(NotificationHandler.needsListenerAttention(
-            isPermissionGranted = false,
-            lastConnectedAt = 1_000_000L,
-            now = 1_000_000_000_000L,
-        ))
-    }
-
-    @Test
-    fun `needs attention when timestamp is older than threshold`() {
-        val now = 1_000_000_000_000L
-        val threshold = 24L * 60 * 60 * 1000
-        assertTrue(NotificationHandler.needsListenerAttention(
-            isPermissionGranted = true,
-            lastConnectedAt = now - threshold - 1, // just past the threshold
-            now = now,
-        ))
-    }
-
-    @Test
-    fun `no attention needed when timestamp is exactly at threshold`() {
-        val now = 1_000_000_000_000L
-        val threshold = 24L * 60 * 60 * 1000
-        assertFalse(NotificationHandler.needsListenerAttention(
-            isPermissionGranted = true,
-            lastConnectedAt = now - threshold,
-            now = now,
-        ))
-    }
-
     // ── matchCategory ────────────────────────────────────────────────────────
 
     @Test

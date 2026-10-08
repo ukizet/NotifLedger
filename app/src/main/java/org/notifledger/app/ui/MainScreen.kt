@@ -2,10 +2,8 @@ package org.notifledger.app.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,7 +38,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +60,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.composables.icons.lucide.Bell
-import com.composables.icons.lucide.BellOff
 import com.composables.icons.lucide.Bot
 import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
@@ -79,7 +72,7 @@ import kotlinx.coroutines.launch
 import org.notifledger.app.R
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
-import org.notifledger.app.notification.NotificationHandler
+import org.notifledger.app.ui.components.BulkChangeDialog
 import org.notifledger.app.ui.components.FilterRow
 import org.notifledger.app.ui.components.OnboardingChecklist
 import org.notifledger.app.ui.components.OnboardingItem
@@ -113,13 +106,8 @@ fun MainScreen(
     val defaultAccount by viewModel.defaultAccount.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val uiMessage by viewModel.uiMessage.collectAsState()
-    val lastListenerConnectedAt by viewModel.lastListenerConnectedAt.collectAsState()
     val context = LocalContext.current
     val isListening = rememberListenerEnabled(context)
-    val listenerNeedsAttention = remember(isListening, lastListenerConnectedAt) {
-        NotificationHandler.needsListenerAttention(isListening, lastListenerConnectedAt)
-    }
-    var listenerBannerDismissed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -154,40 +142,15 @@ fun MainScreen(
 
     var editingIndex by remember { mutableStateOf(-1) }
     var showSimulateDialog by remember { mutableStateOf(false) }
+    var selectedOffsets by remember { mutableStateOf(setOf<Int>()) }
+    var showBulkChange by remember { mutableStateOf(false) }
+
+    LaunchedEffect(entries) {
+        selectedOffsets = emptySet()
+        if (editingIndex >= entries.size) editingIndex = -1
+    }
 
     Scaffold(
-        topBar = {
-            val cdListenerOff = stringResource(R.string.cd_listener_off)
-            val cdNoSources = stringResource(R.string.cd_no_sources)
-            val cdListening = stringResource(R.string.cd_listening)
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        when {
-                            !isListening -> Icon(
-                                Lucide.BellOff,
-                                contentDescription = cdListenerOff,
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                            notificationSources.isEmpty() -> Icon(
-                                Lucide.Bell,
-                                contentDescription = cdNoSources,
-                                tint = MaterialTheme.colorScheme.tertiary,
-                            )
-                            else -> Icon(
-                                Lucide.Bell,
-                                contentDescription = cdListening,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             MainBottomBar(navController = navController, onSimulate = { showSimulateDialog = true })
@@ -234,12 +197,6 @@ fun MainScreen(
             }
         } else if (!hasEntries) {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                if (listenerNeedsAttention && !listenerBannerDismissed) {
-                    ListenerHeartbeatBanner(
-                        onDismiss = { listenerBannerDismissed = true },
-                        context = context,
-                    )
-                }
                 OnboardingChecklist(
                     items = onboardingItems,
                     modifier = Modifier.padding(top = 12.dp),
@@ -257,12 +214,6 @@ fun MainScreen(
             }
         } else {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                if (listenerNeedsAttention && !listenerBannerDismissed) {
-                    ListenerHeartbeatBanner(
-                        onDismiss = { listenerBannerDismissed = true },
-                        context = context,
-                    )
-                }
                 OnboardingChecklist(
                     items = onboardingItems,
                     modifier = Modifier.padding(top = 12.dp),
@@ -360,6 +311,24 @@ fun MainScreen(
                     onToggle = viewModel::toggleFilterActive,
                 )
 
+                if (selectedOffsets.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.bulk_selected_count, selectedOffsets.size),
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { showBulkChange = true }) {
+                            Text(stringResource(R.string.bulk_change_title))
+                        }
+                        IconButton(onClick = { selectedOffsets = emptySet() }) {
+                            Icon(Lucide.X, contentDescription = stringResource(R.string.cancel))
+                        }
+                    }
+                }
+
                 if (entries.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -376,7 +345,20 @@ fun MainScreen(
                         itemsIndexed(entries, key = { _, entry -> entry.lineOffset }) { index, entry ->
                             TransactionRow(
                                 entry = entry,
-                                onEdit = { editingIndex = index },
+                                onClick = {
+                                    if (selectedOffsets.isEmpty()) {
+                                        editingIndex = index
+                                    } else {
+                                        selectedOffsets = if (entry.lineOffset in selectedOffsets) {
+                                            selectedOffsets - entry.lineOffset
+                                        } else {
+                                            selectedOffsets + entry.lineOffset
+                                        }
+                                    }
+                                },
+                                onLongClick = { selectedOffsets = selectedOffsets + entry.lineOffset },
+                                selected = entry.lineOffset in selectedOffsets,
+                                selectionMode = selectedOffsets.isNotEmpty(),
                                 onDelete = { viewModel.deleteTransaction(entry.lineOffset) },
                             )
                         }
@@ -384,6 +366,18 @@ fun MainScreen(
                 }
             }
         }
+    }
+
+    if (showBulkChange) {
+        BulkChangeDialog(
+            accountSuggestions = accountSuggestions,
+            onConfirm = { date, payee, currency, account ->
+                viewModel.changeTransactions(selectedOffsets, date, payee, currency, account)
+                selectedOffsets = emptySet()
+                showBulkChange = false
+            },
+            onDismiss = { showBulkChange = false },
+        )
     }
 
     if (showSimulateDialog) {
@@ -402,6 +396,7 @@ fun MainScreen(
             date = entry.date,
             payee = entry.payee,
             postings = entry.postings,
+            note = entry.note,
         )
         AlertDialog(
             onDismissRequest = { editingIndex = -1 },
@@ -557,44 +552,4 @@ private fun SimulateNotificationDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
         },
     )
-}
-
-@Composable
-private fun ListenerHeartbeatBanner(onDismiss: () -> Unit, context: android.content.Context) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clickable {
-                context.startActivity(
-                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                )
-                onDismiss()
-            },
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-        ),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.listener_needs_attention),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
-            IconButton(
-                onClick = onDismiss,
-            ) {
-                Icon(
-                    imageVector = Lucide.X,
-                    contentDescription = stringResource(R.string.dismiss),
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        }
-    }
 }

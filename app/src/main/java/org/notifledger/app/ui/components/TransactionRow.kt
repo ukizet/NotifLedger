@@ -1,6 +1,7 @@
 package org.notifledger.app.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,26 +29,32 @@ import java.time.format.DateTimeFormatter
 
 private val dateDisplay = DateTimeFormatter.ofPattern("MMM d")
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TransactionRow(
     entry: JournalEntry,
-    onEdit: () -> Unit,
+    onClick: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    selectionMode: Boolean = false,
+    onLongClick: () -> Unit = {},
 ) {
     val displayDate = remember(entry.date) { formatDisplayDate(entry.date) }
     val deleteLabel = stringResource(R.string.delete)
     SwipeToDelete(
         onDelete = onDelete,
         modifier = modifier.fillMaxWidth(),
+        enabled = !selectionMode,
     ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp)
-                .clickable(
+                .combinedClickable(
                     onClickLabel = stringResource(R.string.edit_transaction),
-                    onClick = onEdit,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
                 )
                 .semantics {
                     customActions = listOf(
@@ -57,6 +64,11 @@ fun TransactionRow(
                         },
                     )
                 },
+            colors = if (selected) {
+                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            } else {
+                CardDefaults.cardColors()
+            },
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         ) {
             Column(

@@ -56,13 +56,13 @@ fun QuickAddScreen(
                 payee = "",
                 postings = listOf(
                     Posting(account = "expenses:unknown", amount = "", currency = defaultCurrency),
-                    Posting(account = defaultAccount, amount = "", currency = defaultCurrency),
                 ),
                 source = Source.Manual,
             ),
             payeeSuggestions = payeeSuggestions,
             accountSuggestions = accountSuggestions,
             defaultCurrency = defaultCurrency,
+            paymentAccount = defaultAccount,
             onSave = { tx ->
                 viewModel.addTransaction(tx)
                 onBack()

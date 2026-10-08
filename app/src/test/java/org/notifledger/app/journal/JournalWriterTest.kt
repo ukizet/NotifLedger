@@ -322,4 +322,179 @@ val result = JournalWriter.deleteFromContent(content, 0).content
         assertEquals(3, extraIdx - remaIdx)
         assertEquals("2026-07-14 Extra", lines[remaIdx + 3])
     }
+
+    @Test
+    fun `replaceManyInContent updates multiple entries`() {
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n" +
+                "\n" +
+                "2026-07-14 Extra\n" +
+                "    expenses:groceries               50.00 NOK\n" +
+                "    assets:bank:checking             -50.00 NOK\n")
+        val first = Transaction(
+            date = "2026-08-01",
+            payee = "Rema New",
+            postings = listOf(
+                Posting("expenses:groceries", "184.50", "NOK"),
+                Posting("assets:bank:checking", "-184.50", "NOK"),
+            ),
+        )
+        val last = Transaction(
+            date = "2026-07-14",
+            payee = "Extra",
+            postings = listOf(
+                Posting("expenses:groceries", "50.00", "EUR"),
+                Posting("assets:bank:checking", "-50.00", "EUR"),
+            ),
+        )
+        val result = JournalWriter.replaceManyInContent(content, mapOf(0 to first, 8 to last))
+        assertEquals(true, result.content.contains("2026-08-01 Rema New"))
+        assertEquals(true, result.content.contains("EUR"))
+        assertEquals(true, result.content.contains("2026-07-13 Kiwi"))
+        assertEquals(true, result.content.contains("95.00 NOK"))
+        assertEquals(3, result.entries.size)
+        assertEquals("2026-08-01", result.entries[0].date)
+        assertEquals("Rema New", result.entries[0].payee)
+        assertEquals("Kiwi", result.entries[1].payee)
+        assertEquals("EUR", result.entries[2].postings[0].currency)
+        assertEquals(0, result.entries[0].lineOffset)
+        assertEquals(4, result.entries[1].lineOffset)
+        assertEquals(8, result.entries[2].lineOffset)
+    }
+
+    @Test
+    fun `replaceManyInContent empty map returns unchanged content`() {
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n")
+        val result = JournalWriter.replaceManyInContent(content, emptyMap())
+        assertEquals(content, result.content)
+        assertEquals(JournalWriter.readAll(content), result.entries)
+    }
+
+    @Test
+    fun `replaceManyInContent handles different line counts`() {
+        val content = ("2026-07-12 Rema 1000\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n" +
+                "\n" +
+                "2026-07-13 Kiwi\n" +
+                "    expenses:groceries               95.00 NOK\n" +
+                "    assets:bank:checking             -95.00 NOK\n")
+        val first = Transaction(
+            date = "2026-07-12",
+            payee = "Rema 1000",
+            postings = listOf(
+                Posting("expenses:groceries", "100.00", "NOK"),
+                Posting("expenses:snack", "84.50", "NOK"),
+                Posting("assets:bank:checking", "-184.50", "NOK"),
+            ),
+        )
+        val second = Transaction(
+            date = "2026-07-14",
+            payee = "Kiwi Updated",
+            postings = listOf(
+                Posting("expenses:groceries", "95.00", "EUR"),
+                Posting("assets:bank:checking", "-95.00", "EUR"),
+            ),
+        )
+        val result = JournalWriter.replaceManyInContent(content, mapOf(0 to first, 4 to second))
+        assertEquals(JournalWriter.readAll(result.content), result.entries)
+        val entries = JournalWriter.readAll(result.content)
+        assertEquals(2, entries.size)
+        assertEquals("Rema 1000", entries[0].payee)
+        assertEquals(3, entries[0].postings.size)
+        assertEquals("Kiwi Updated", entries[1].payee)
+        assertEquals("EUR", entries[1].postings[0].currency)
+    }
+
+    @Test
+    fun `countEntryLines stops at adjacent date line`() {
+        val lines = listOf(
+            "2026-07-12 A",
+            "    expenses:groceries              10.00 NOK",
+            "    assets:bank:checking           -10.00 NOK",
+            "2026-07-13 B",
+            "    expenses:groceries              20.00 NOK",
+            "    assets:bank:checking           -20.00 NOK",
+        )
+        val count = JournalWriter.countEntryLines(lines, 0)
+        assertEquals(3, count)
+    }
+
+    @Test
+    fun `delete then edit preserves following adjacent entry`() {
+        val content = ("2026-07-12 First\n" +
+                "    expenses:a                       10.00 NOK\n" +
+                "    assets:bank:checking           -10.00 NOK\n" +
+                "\n" +
+                "2026-07-13 Second\n" +
+                "    expenses:b                       20.00 NOK\n" +
+                "    assets:bank:checking           -20.00 NOK\n" +
+                "\n" +
+                "2026-07-14 Third\n" +
+                "    expenses:c                       30.00 NOK\n" +
+                "    assets:bank:checking           -30.00 NOK\n")
+        val afterDelete = JournalWriter.deleteFromContent(content, 4).content
+        val edited = Transaction(
+            date = "2026-07-12",
+            payee = "First Changed",
+            postings = listOf(
+                Posting("expenses:a", "10.00", "NOK"),
+                Posting("assets:bank:checking", "-10.00", "NOK"),
+            ),
+        )
+        val afterEdit = JournalWriter.replaceInContent(afterDelete, 0, edited).content
+        assertEquals(true, afterEdit.contains("2026-07-14 Third"))
+        assertEquals(false, afterEdit.contains("Second"))
+        assertEquals(true, afterEdit.contains("First Changed"))
+    }
+
+    @Test
+    fun `replaceInContent returns entry offsets consistent with readAll`() {
+        val content = ("2026-07-12 First\n" +
+                "    expenses:a                       10.00 NOK\n" +
+                "    assets:bank:checking           -10.00 NOK\n" +
+                "2026-07-13 Second\n" +
+                "    expenses:b                       20.00 NOK\n" +
+                "    assets:bank:checking           -20.00 NOK\n")
+        val first = Transaction(
+            date = "2026-07-12",
+            payee = "First",
+            postings = listOf(
+                Posting("expenses:a", "15.00", "NOK"),
+                Posting("assets:bank:checking", "-15.00", "NOK"),
+            ),
+        )
+        val result = JournalWriter.replaceInContent(content, 0, first)
+        assertEquals(JournalWriter.readAll(result.content), result.entries)
+        assertEquals(4, result.entries[1].lineOffset)
+    }
+
+    @Test
+    fun `readAll parses note and replaceInContent preserves it`() {
+        val content = ("2026-07-13 B  ; groceries\n" +
+                "    expenses:groceries              184.50 NOK\n" +
+                "    assets:bank:checking           -184.50 NOK\n")
+        val parsed = JournalWriter.readAll(content)
+        assertEquals("groceries", parsed[0].note)
+
+        val replacement = Transaction(
+            date = "2026-07-13",
+            payee = "B",
+            postings = listOf(
+                Posting("expenses:groceries", "184.50", "NOK"),
+                Posting("assets:bank:checking", "-184.50", "NOK"),
+            ),
+            note = "memo",
+        )
+        val result = JournalWriter.replaceInContent(content, 0, replacement)
+        assertEquals(true, result.content.contains("memo"))
+        assertEquals("memo", JournalWriter.readAll(result.content)[0].note)
+    }
 }

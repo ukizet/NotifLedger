@@ -13,7 +13,6 @@
     <string name="delete">Delete</string>
     <string name="change">Change</string>
     <string name="done">Done</string>
-    <string name="dismiss">Dismiss</string>
     <string name="enable">Enable</string>
     <string name="not_set">Not set</string>
     <string name="remove">Remove</string>
@@ -30,20 +29,17 @@
     <string name="account">Account</string>
     <string name="date">Date</string>
     <string name="currency">Currency</string>
-    <string name="description">Description</string>
-    <string name="form_date_hint">YYYY-MM-DD</string>
+    <string name="date_invalid">Enter a date as YYYY-MM-DD</string>
     <string name="form_postings_title">Postings</string>
-    <string name="form_auto_balance_hint">Leave amount empty to auto-balance.</string>
     <string name="form_amount_placeholder">auto</string>
     <string name="form_add_posting">Add posting</string>
     <string name="form_note_hint">Note (optional)</string>
+    <string name="form_show_details">Show details</string>
+    <string name="form_hide_details">Hide details</string>
 
     <!-- Main screen -->
     <string name="no_journal_selected">Select a journal file to begin</string>
     <string name="no_transactions">No transactions yet. Add one with the + button.</string>
-    <string name="cd_listener_off">Notification listener is off — tap to open settings</string>
-    <string name="cd_no_sources">No notification sources selected — tap to open settings</string>
-    <string name="cd_listening">Listening for notifications</string>
     <string name="edit_transaction">Edit transaction</string>
     <string name="simulate_notification">Simulate notification</string>
     <string name="simulate_intro">Paste a notification. The app will find the first number as the amount and use the title as the payee.</string>
@@ -75,6 +71,11 @@
     <string name="filter_account_duplicate">This account is already in the row</string>
     <string name="filter_row_limit">Max filter chips</string>
     <string name="no_matching_transactions">No transactions match the active filters</string>
+
+    <!-- Bulk edit -->
+    <string name="bulk_change_title">Change selected</string>
+    <string name="bulk_selected_count">%1$d selected</string>
+    <string name="bulk_change_hint">Leave a field blank to keep it unchanged. Amounts can\'t be changed in bulk.</string>
 
     <!-- Onboarding -->
     <string name="onboarding_title">Setup checklist</string>
@@ -124,6 +125,9 @@
     <string name="no_log_entries">No log entries yet.</string>
     <string name="no_log_match_filter">No entries match the filter.</string>
     <string name="logs_clear_confirm">Clear all log entries?</string>
+    <string name="logs_entries">Entries</string>
+    <string name="logs_raw">Raw</string>
+    <string name="logs_raw_empty">No raw log file yet.</string>
 
     <!-- Foreground notification shown by NotificationHelper -->
     <string name="notif_listening_title">NotifLedger is listening</string>
@@ -131,7 +135,4 @@
     <string name="notif_not_listening_text">Tap to enable notification listener access</string>
     <string name="notif_listener_channel_name">Notification Listener</string>
     <string name="notif_listener_channel_desc">Indicates the notification listener is active</string>
-
-    <!-- Listener heartbeat banner -->
-    <string name="listener_needs_attention">Listener connection lost — tap to check</string>
 </resources>

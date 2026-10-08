@@ -7,6 +7,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+/** The one place to change the filter add button's green. */
+val FilterAddGreen = Color(0xFF2E7D32)
+
 /**
  * AMOLED-friendly dark scheme: surface is pure black so the app blends into OLED
  * backgrounds, but that makes default-toned Cards invisible against it.

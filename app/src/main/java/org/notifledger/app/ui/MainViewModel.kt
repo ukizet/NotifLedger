@@ -109,10 +109,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList()
     )
 
-    val lastListenerConnectedAt = settings.lastListenerConnectedAt.stateIn(
-        viewModelScope, SharingStarted.WhileSubscribed(5_000), null
-    )
-
     val logEntries: StateFlow<List<LogEntry>>
 
     init {
@@ -215,8 +211,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (path.isBlank()) return@withLock
                 val existing = readJournalContent(path) ?: return@withLock
                 val result = JournalWriter.appendToContent(existing, tx)
-                emitSaveResult(writeJournalContent(path, result.content))
-                _allEntries.value = result.entries
+                if (writeJournalContent(path, result.content)) {
+                    emitMessage("Saved")
+                    _allEntries.value = result.entries
+                } else {
+                    emitMessage("Save failed — see Logs")
+                }
             }
         }
     }
@@ -229,8 +229,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (path.isBlank()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
                 val result = JournalWriter.replaceInContent(content, offset, tx)
-                emitSaveResult(writeJournalContent(path, result.content))
-                _allEntries.value = result.entries
+                val wrote = writeJournalContent(path, result.content)
+                emitSaveResult(wrote)
+                if (wrote) _allEntries.value = result.entries
             }
         }
     }
@@ -243,8 +244,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (path.isBlank()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
                 val result = JournalWriter.deleteFromContent(content, offset)
-                if (writeJournalContent(path, result.content)) emitMessage("Deleted") else emitMessage("Delete failed — see Logs")
-                _allEntries.value = result.entries
+                if (writeJournalContent(path, result.content)) {
+                    emitMessage("Deleted")
+                    _allEntries.value = result.entries
+                } else {
+                    emitMessage("Delete failed — see Logs")
+                }
+            }
+        }
+    }
+
+    fun changeTransactions(offsets: Set<Int>, date: String?, payee: String?, currency: String?, account: String?) {
+        viewModelScope.launch {
+            val app = getApplication<NotifLedgerApp>()
+            app.journalWriteMutex.withLock {
+                val path = settings.journalPath.first()
+                if (path.isBlank()) return@withLock
+                val byOffset = _allEntries.value.associateBy { it.lineOffset }
+                val updates = offsets.mapNotNull { offset ->
+                    val entry = byOffset[offset] ?: return@mapNotNull null
+                    val postings = entry.postings.mapIndexed { index, posting ->
+                        val withCurrency = if (currency != null) posting.copy(currency = currency) else posting
+                        if (account != null && index == 0) withCurrency.copy(account = account) else withCurrency
+                    }
+                    offset to Transaction(
+                        date = date ?: entry.date,
+                        payee = payee ?: entry.payee,
+                        postings = postings,
+                        note = entry.note,
+                    )
+                }.toMap()
+                if (updates.isEmpty()) return@withLock
+                val content = readJournalContent(path) ?: return@withLock
+                val result = JournalWriter.replaceManyInContent(content, updates)
+                if (writeJournalContent(path, result.content)) {
+                    emitMessage("Updated ${updates.size}")
+                    _allEntries.value = result.entries
+                } else {
+                    emitMessage("Update failed — see Logs")
+                }
             }
         }
     }
@@ -271,7 +309,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun simulateNotification(title: String, text: String): String {
         val defaultAccount = settings.defaultAccount.first()
 
-        AppLogger.info("Simulate", "Simulating notification: «$title» — «$text»")
+        AppLogger.info("Simulate", "Simulating notification")
 
         val result = ParserEngine.parse(title, text, "expenses:unknown", defaultAccount)
         if (result == null) {
@@ -296,7 +334,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             _allEntries.value = writeResult.entries
             val msg = "Written: ${result.date} ${result.payee} — ${result.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}"
-            AppLogger.info("Simulate", msg)
+            AppLogger.info("Simulate", "Notification written ${result.date}")
             emitMessage("Simulated: $msg")
             msg
         }
