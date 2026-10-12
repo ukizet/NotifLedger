@@ -35,6 +35,8 @@ import org.notifledger.app.R
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Transaction
 import java.time.LocalDate
+import java.util.Locale
+import kotlin.math.abs
 
 /**
  * Reusable form for entering/editing a transaction.
@@ -45,8 +47,8 @@ import java.time.LocalDate
  * @param payeeSuggestions list of existing payee names for autocomplete dropdown.
  * @param accountSuggestions list of existing account names for autocomplete dropdown.
  * @param defaultCurrency default currency to use when no currency is set on the initial.
- * @param paymentAccount when non-null the money-side posting is fixed to this account
- *   and hidden from the form; used by Quick add.
+ * @param defaultPaymentAccount quick-add mode: the money-side leg is editable in Show
+ *   details and prefilled from Settings. When null all postings are edited directly.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,14 +60,16 @@ fun TransactionForm(
     payeeSuggestions: List<String> = emptyList(),
     accountSuggestions: List<String> = emptyList(),
     defaultCurrency: String = "NOK",
-    paymentAccount: String? = null,
+    defaultPaymentAccount: String? = null,
 ) {
     var payee by remember { mutableStateOf(initial.payee) }
     var date by remember { mutableStateOf(initial.date) }
     var note by remember { mutableStateOf(initial.note) }
     var showDetails by remember { mutableStateOf(false) }
-    var currency by remember {
-        mutableStateOf(initial.postings.firstOrNull()?.currency ?: defaultCurrency)
+    var currency by remember(defaultCurrency) {
+        mutableStateOf(
+            initial.postings.firstOrNull()?.currency?.takeIf { it.isNotBlank() } ?: defaultCurrency,
+        )
     }
     val postings = remember {
         mutableStateListOf<Posting>().apply {
@@ -76,9 +80,28 @@ fun TransactionForm(
             }
         }
     }
+    var paymentAuto by remember { mutableStateOf(true) }
+    var paymentManual by remember { mutableStateOf("") }
+    var paymentAccountValue by remember(defaultPaymentAccount) {
+        mutableStateOf(defaultPaymentAccount ?: "")
+    }
+
+    val amountTotal = postings
+        .filter { it.amount.isNotBlank() }
+        .sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
+    val formattedAuto = String.format(Locale.ROOT, "%.2f", -amountTotal)
+    val paymentAmountText = if (paymentAuto) formattedAuto else paymentManual
+    val paymentManualValue = paymentManual.replace(",", ".").toDoubleOrNull()
+    val paymentUnbalanced = !paymentAuto &&
+        (paymentManualValue == null || abs(amountTotal + paymentManualValue) > 1e-9)
     val dateValid = runCatching { LocalDate.parse(date) }.isSuccess
-    // A quick-add entry needs a visible amount; the payment leg is hidden from the form.
-    val canSave = dateValid && (paymentAccount == null || postings.any { it.amount.isNotBlank() })
+    val canSave = dateValid && (
+        defaultPaymentAccount == null || (
+            paymentAccountValue.isNotBlank() &&
+                postings.any { it.amount.isNotBlank() } &&
+                !paymentUnbalanced
+            )
+        )
 
     Column(
         modifier = modifier
@@ -209,6 +232,43 @@ fun TransactionForm(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            if (defaultPaymentAccount != null) {
+                Spacer(Modifier.height(8.dp))
+
+                AccountField(
+                    value = paymentAccountValue,
+                    onValueChange = { paymentAccountValue = it },
+                    suggestions = accountSuggestions,
+                    label = stringResource(R.string.default_account),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = paymentAmountText,
+                    onValueChange = { new ->
+                        val trimmed = new.trim()
+                        if (trimmed.isBlank() || trimmed == "-") {
+                            paymentAuto = true
+                        } else {
+                            paymentAuto = false
+                            paymentManual = new
+                        }
+                    },
+                    label = { Text(stringResource(R.string.amount)) },
+                    singleLine = true,
+                    isError = paymentUnbalanced,
+                    supportingText = if (paymentUnbalanced) {
+                        { Text(stringResource(R.string.form_unbalanced)) }
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -227,9 +287,15 @@ fun TransactionForm(
                     val resolvedPostings = postings.map { p ->
                         p.copy(currency = currency)
                     }.toMutableList()
-                    if (paymentAccount != null) {
+                    if (defaultPaymentAccount != null) {
+                        val resolvedPaymentAmount =
+                            if (paymentAuto) formattedAuto else paymentManual.replace(",", ".")
                         resolvedPostings.add(
-                            Posting(account = paymentAccount, amount = "", currency = currency),
+                            Posting(
+                                account = paymentAccountValue,
+                                amount = resolvedPaymentAmount,
+                                currency = currency,
+                            ),
                         )
                     }
                     val tx = Transaction(

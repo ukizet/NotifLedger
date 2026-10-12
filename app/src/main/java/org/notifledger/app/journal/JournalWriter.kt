@@ -11,7 +11,7 @@ import org.notifledger.app.model.Transaction
  */
 object JournalWriter {
 
-    private val dateLineRegex = Regex("^(\\d{4}-\\d{2}-\\d{2})\\s+(.*)")
+    private val dateLineRegex = Regex("^(\\d{4}-\\d{2}-\\d{2})(\\s.*)?$")
     private val postingLine4SpaceRegex = Regex("^\\s{4,}.*")
     private val postingLineTabRegex = Regex("^\\t+.*")
     private val postingLineLowercaseRegex = Regex("^\\s+[a-z].*")
@@ -19,13 +19,15 @@ object JournalWriter {
     private val amountWithCurrencyRegex = Regex("^(-?)([\\d.,]+)\\s*([a-zA-Z]+)$")
     private val amountWithCurrencyNoSignRegex = Regex("([\\d.,]+)\\s*([a-zA-Z]+)$")
     private val amountOnlyRegex = Regex("^(-?)([\\d.,]+)$")
-    private val entryDateRegex = Regex("^\\d{4}-\\d{2}-\\d{2}\\s")
+    private val entryDateRegex = Regex("^\\d{4}-\\d{2}-\\d{2}(\\s|$)")
 
     /**
      * Format a transaction as an hledger journal entry string.
      *
      * Auto-balances: if exactly one posting has an empty amount, the
-     * negative total of the other postings is computed and used.
+     * negative total of the other postings is computed and used. If several
+     * amounts are empty (best-effort entries), every empty amount becomes
+     * 0.00 so hledger accepts the entry.
      *
      *   2026-07-12 Rema 1000
      *       expenses:groceries              184.50 NOK
@@ -33,24 +35,30 @@ object JournalWriter {
      */
     fun format(tx: Transaction): String {
         val postings = tx.postings
+        val blankCount = postings.count { it.amount.isBlank() }
 
-        // Auto-balance: find the one empty amount posting and fill it
-        val resolved = if (postings.count { it.amount.isBlank() } == 1) {
-            val nonEmptyTotal = postings
-                .filter { it.amount.isNotBlank() }
-                .sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-            val balanceAmount = String.format("%.2f", -nonEmptyTotal).replace(",", ".")
-            postings.map { p ->
-                if (p.amount.isBlank()) p.copy(amount = balanceAmount) else p
+        val resolved = when {
+            blankCount == 1 -> {
+                val nonEmptyTotal = postings
+                    .filter { it.amount.isNotBlank() }
+                    .sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
+                val balanceAmount = String.format(java.util.Locale.ROOT, "%.2f", -nonEmptyTotal)
+                postings.map { p ->
+                    if (p.amount.isBlank()) p.copy(amount = balanceAmount) else p
+                }
             }
-        } else {
-            postings
+            blankCount >= 2 -> postings.map { p ->
+                if (p.amount.isBlank()) p.copy(amount = "0.00") else p
+            }
+            else -> postings
         }
 
         val dateLine = buildString {
             append(tx.date)
-            append(" ")
-            append(tx.payee)
+            if (tx.payee.isNotBlank()) {
+                append(" ")
+                append(tx.payee)
+            }
             if (tx.note.isNotBlank()) {
                 append("  ; ")
                 append(tx.note)
@@ -69,10 +77,7 @@ object JournalWriter {
     fun appendToContent(existingContent: String, tx: Transaction): JournalWriteResult {
         val entry = format(tx)
         val content = existingContent.trimEnd() + "\n\n" + entry + "\n"
-        val existingEntries = readAll(existingContent)
-        val newEntryLineOffset = existingContent.trimEnd().lines().size + 1
-        val newEntry = JournalEntry(tx.date, tx.payee, tx.postings, newEntryLineOffset, tx.note)
-        return JournalWriteResult(content, existingEntries + newEntry)
+        return JournalWriteResult(content, readAll(content))
     }
 
     /**

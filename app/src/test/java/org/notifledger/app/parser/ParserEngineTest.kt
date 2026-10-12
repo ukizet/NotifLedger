@@ -88,6 +88,33 @@ class ParserEngineTest {
         assertEquals("", result.postings[1].amount)
     }
 
+    @Test
+    fun `parse defaults currency to blank`() {
+        val result = ParserEngine.parse(
+            title = "Betalt",
+            text = "Betalt 184.50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("", result!!.postings[0].currency)
+        assertEquals("", result.postings[1].currency)
+    }
+
+    @Test
+    fun `parse applies currency to both postings`() {
+        val result = ParserEngine.parse(
+            title = "Betalt",
+            text = "Betalt 184.50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+            currency = "EUR",
+        )
+        assertNotNull(result)
+        assertEquals("EUR", result!!.postings[0].currency)
+        assertEquals("EUR", result.postings[1].currency)
+    }
+
     // ── Real-world notification formats ─────────────────────────────────────
 
     @Test

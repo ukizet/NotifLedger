@@ -59,6 +59,13 @@ class NotifLedgerApp : Application() {
         } catch (_: Exception) { "assets:bank:checking" }
     }
 
+    /** Used by NotifListener to get the default currency. */
+    fun getDefaultCurrency(): String = runBlocking {
+        try {
+            settings.defaultCurrency.first()
+        } catch (_: Exception) { "NOK" }
+    }
+
     /** Used by NotifListener to get allowed notification packages. */
     fun getAllowedNotificationPackages(): Set<String> = runBlocking {
         try {

@@ -3,6 +3,18 @@
 Guidance for OpenCode sessions working in this repo. Read `docs/design.md` before
 changing core flow — many "obvious improvements" are explicit non-goals (see §8).
 
+## Reference: NanoLedger
+
+When unsure how to implement something in this app, consult **NanoLedger** as
+inspiration/reference — a mature Android hledger data-entry app (Kotlin, Compose)
+solving a very similar problem:
+
+- GitHub: <https://github.com/chvp/NanoLedger>
+- Read-only local clone: `/home/sas/Documents/repos/NanoLedger`
+
+Reading that clone is explicitly allowed (and encouraged); never modify it, and
+still follow this repo's own conventions over anything found there.
+
 ## Agent usage policy
 
 **Use available agents for all substantive work.** This repo has specialized agents

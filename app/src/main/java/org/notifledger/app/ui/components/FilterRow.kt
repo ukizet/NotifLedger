@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
@@ -69,7 +72,7 @@ fun FilterRow(
         if (filters.size < maxFilters) {
             Button(
                 onClick = { showAddDialog = true },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).heightIn(min = 40.dp),
                 colors = if (filters.isEmpty()) {
                     ButtonDefaults.buttonColors(
                         containerColor = FilterAddGreen,
@@ -165,7 +168,7 @@ private fun FilterChipItem(
 
     Box(modifier = modifier) {
         Surface(
-            shape = MaterialTheme.shapes.small,
+            shape = RoundedCornerShape(percent = 50),
             color = if (isActive) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
@@ -178,6 +181,7 @@ private fun FilterChipItem(
             },
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 40.dp)
                 .combinedClickable(
                     onClick = onToggle,
                     onLongClick = { menuExpanded = true },
@@ -188,7 +192,11 @@ private fun FilterChipItem(
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(Alignment.CenterVertically)
+                    .padding(horizontal = 12.dp),
             )
         }
         DropdownMenu(

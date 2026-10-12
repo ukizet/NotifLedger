@@ -36,6 +36,7 @@
     <string name="form_note_hint">Note (optional)</string>
     <string name="form_show_details">Show details</string>
     <string name="form_hide_details">Hide details</string>
+    <string name="form_unbalanced">Amounts must add up to zero</string>
 
     <!-- Main screen -->
     <string name="no_journal_selected">Select a journal file to begin</string>

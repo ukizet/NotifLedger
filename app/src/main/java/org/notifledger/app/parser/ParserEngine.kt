@@ -20,12 +20,14 @@ object ParserEngine {
      * @param text   Notification body text (searched for amount)
      * @param expenseAccount  Account for the expense side
      * @param moneyAccount    Account for the money side (auto-balanced)
+     * @param currency        Currency code applied to both postings (blank when unset)
      */
     fun parse(
         title: String,
         text: String,
         expenseAccount: String,
         moneyAccount: String,
+        currency: String = "",
     ): Transaction? {
         val combined = "$title $text".trim()
         val amount = findNumber(combined) ?: return null
@@ -36,8 +38,8 @@ object ParserEngine {
             date = LocalDate.now().toString(),
             payee = title,
             postings = listOf(
-                Posting(account = expenseAccount, amount = cleanAmount, currency = ""),
-                Posting(account = moneyAccount, amount = "", currency = ""),
+                Posting(account = expenseAccount, amount = cleanAmount, currency = currency),
+                Posting(account = moneyAccount, amount = "", currency = currency),
             ),
             source = org.notifledger.app.model.Source.Notification,
         )

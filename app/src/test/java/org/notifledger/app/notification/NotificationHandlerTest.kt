@@ -71,6 +71,19 @@ class NotificationHandlerTest {
         assertEquals("184.50", result!!.postings[0].amount)
     }
 
+    @Test
+    fun `parseTransaction applies passed currency to both postings`() {
+        val result = NotificationHandler.parseTransaction(
+            title = "Betalt",
+            text = "Betalt 184.50 kr",
+            defaultAccount = "assets:bank:checking",
+            currency = "EUR",
+        )
+        assertNotNull(result)
+        assertEquals("EUR", result!!.postings[0].currency)
+        assertEquals("EUR", result.postings[1].currency)
+    }
+
     // ── createBestEffortTransaction ──────────────────────────────────────────
 
     @Test
@@ -110,6 +123,17 @@ class NotificationHandlerTest {
             defaultAccount = "assets:bank:checking",
         )
         assertEquals(today, tx.date)
+    }
+
+    @Test
+    fun `best-effort transaction applies passed currency to both postings`() {
+        val tx = NotificationHandler.createBestEffortTransaction(
+            title = "Test",
+            defaultAccount = "assets:bank:checking",
+            currency = "EUR",
+        )
+        assertEquals("EUR", tx.postings[0].currency)
+        assertEquals("EUR", tx.postings[1].currency)
     }
 
     // ── processNotification (integration) ────────────────────────────────────
@@ -172,6 +196,36 @@ class NotificationHandlerTest {
         assertEquals("SMS", result!!.payee)
         assertEquals("", result.postings[0].amount)
         assertEquals(Source.Notification, result.source)
+    }
+
+    @Test
+    fun `processNotification propagates passed currency to parsed transaction`() {
+        val result = NotificationHandler.processNotification(
+            packageName = "com.example.bank",
+            title = "Varekjøp",
+            text = "Varekjøp 549,00 kr hos MENY",
+            allowedPackages = setOf("com.example.bank"),
+            defaultAccount = "assets:bank:checking",
+            currency = "EUR",
+        )
+        assertNotNull(result)
+        assertEquals("EUR", result!!.postings[0].currency)
+        assertEquals("EUR", result.postings[1].currency)
+    }
+
+    @Test
+    fun `processNotification propagates passed currency to best-effort transaction`() {
+        val result = NotificationHandler.processNotification(
+            packageName = "com.example.bank",
+            title = "Hei",
+            text = "Ingen pengeinformasjon",
+            allowedPackages = setOf("com.example.bank"),
+            defaultAccount = "assets:bank:checking",
+            currency = "EUR",
+        )
+        assertNotNull(result)
+        assertEquals("EUR", result!!.postings[0].currency)
+        assertEquals("EUR", result.postings[1].currency)
     }
 
     // ── matchCategory ────────────────────────────────────────────────────────

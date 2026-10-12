@@ -57,6 +57,78 @@ class JournalWriterTest {
     }
 
     @Test
+    fun `format fills multiple blank amounts with zero`() {
+        val tx = Transaction(
+            date = "2026-07-12",
+            payee = "SMS",
+            postings = listOf(
+                Posting("expenses:unknown", "", ""),
+                Posting("assets:bank:checking", "", ""),
+            ),
+        )
+        val entry = JournalWriter.format(tx)
+        assertEquals(true, entry.contains("0.00"))
+
+        val entries = JournalWriter.readAll(entry)
+        assertEquals(1, entries.size)
+        assertEquals("0.00", entries[0].postings[0].amount)
+        assertEquals("0.00", entries[0].postings[1].amount)
+    }
+
+    @Test
+    fun `format handles blank payee and readAll parses it`() {
+        val tx = Transaction(
+            date = "2026-07-12",
+            payee = "",
+            postings = listOf(
+                Posting("expenses:groceries", "184.50", "NOK"),
+                Posting("assets:bank:checking", "-184.50", "NOK"),
+            ),
+        )
+        val entry = JournalWriter.format(tx)
+        assertEquals(true, entry.startsWith("2026-07-12"))
+
+        val entries = JournalWriter.readAll(entry)
+        assertEquals(1, entries.size)
+        assertEquals("2026-07-12", entries[0].date)
+        // No payee on the line — parseEntry falls back to the first account.
+        assertEquals("expenses:groceries", entries[0].payee)
+    }
+
+    @Test
+    fun `format blank payee with note round-trips note`() {
+        val tx = Transaction(
+            date = "2026-07-13",
+            payee = "",
+            postings = listOf(
+                Posting("expenses:groceries", "184.50", "NOK"),
+                Posting("assets:bank:checking", "-184.50", "NOK"),
+            ),
+            note = "groceries",
+        )
+        val entry = JournalWriter.format(tx)
+        assertEquals(true, entry.startsWith("2026-07-13  ; groceries"))
+
+        val parsed = JournalWriter.readAll(entry)
+        assertEquals(1, parsed.size)
+        assertEquals("groceries", parsed[0].note)
+    }
+
+    @Test
+    fun `format auto-balances comma decimal amounts`() {
+        val tx = Transaction(
+            date = "2026-07-12",
+            payee = "Rema 1000",
+            postings = listOf(
+                Posting("expenses:groceries", "184,50", "NOK"),
+                Posting("assets:bank:checking", "", "NOK"),
+            ),
+        )
+        val result = JournalWriter.format(tx)
+        assertEquals(true, result.contains("-184.50 NOK"))
+    }
+
+    @Test
     fun `readAll parses simple journal`() {
         val content = """
             |2026-07-12 Rema 1000
@@ -113,6 +185,24 @@ class JournalWriterTest {
         assertEquals(true, result.contains("2026-07-13 Kiwi"))
         assertEquals(true, result.contains("95.00 NOK"))
         assertEquals(true, result.contains("-95.00 NOK"))
+    }
+
+    @Test
+    fun `appendToContent returns auto-balanced posting amounts`() {
+        val existing = "2026-07-12 Rema 1000\n    expenses:groceries  184.50 NOK\n    assets:bank:checking  -184.50 NOK\n"
+        val tx = Transaction(
+            date = "2026-07-13",
+            payee = "Kiwi",
+            postings = listOf(
+                Posting("expenses:groceries", "95.00", "NOK"),
+                Posting("assets:bank:checking", "", "NOK"),
+            ),
+        )
+        val result = JournalWriter.appendToContent(existing, tx)
+        val appended = result.entries.last()
+        assertEquals("2026-07-13", appended.date)
+        assertEquals("Kiwi", appended.payee)
+        assertEquals("-95.00", appended.postings[1].amount)
     }
 
     @Test
@@ -420,6 +510,20 @@ val result = JournalWriter.deleteFromContent(content, 0).content
             "    expenses:groceries              10.00 NOK",
             "    assets:bank:checking           -10.00 NOK",
             "2026-07-13 B",
+            "    expenses:groceries              20.00 NOK",
+            "    assets:bank:checking           -20.00 NOK",
+        )
+        val count = JournalWriter.countEntryLines(lines, 0)
+        assertEquals(3, count)
+    }
+
+    @Test
+    fun `countEntryLines stops at adjacent date-only line`() {
+        val lines = listOf(
+            "2026-07-12 A",
+            "    expenses:groceries              10.00 NOK",
+            "    assets:bank:checking           -10.00 NOK",
+            "2026-07-13",
             "    expenses:groceries              20.00 NOK",
             "    assets:bank:checking           -20.00 NOK",
         )

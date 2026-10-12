@@ -62,7 +62,7 @@ fun QuickAddScreen(
             payeeSuggestions = payeeSuggestions,
             accountSuggestions = accountSuggestions,
             defaultCurrency = defaultCurrency,
-            paymentAccount = defaultAccount,
+            defaultPaymentAccount = defaultAccount,
             onSave = { tx ->
                 viewModel.addTransaction(tx)
                 onBack()

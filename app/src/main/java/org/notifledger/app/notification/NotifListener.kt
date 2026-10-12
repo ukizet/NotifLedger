@@ -50,6 +50,7 @@ class NotifListener : NotificationListenerService() {
         val text = extras.getString(EXTRA_TEXT) ?: ""
 
         val defaultAccount = app.getDefaultAccount()
+        val defaultCurrency = app.getDefaultCurrency()
         val rules = app.getCategorizationRules()
 
         val tx = NotificationHandler.processNotification(
@@ -58,6 +59,7 @@ class NotifListener : NotificationListenerService() {
             text = text,
             allowedPackages = allowedPackages,
             defaultAccount = defaultAccount,
+            currency = defaultCurrency,
             rules = rules,
         ) ?: return
 

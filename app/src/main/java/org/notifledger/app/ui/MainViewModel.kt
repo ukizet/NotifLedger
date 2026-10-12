@@ -308,10 +308,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun simulateNotification(title: String, text: String): String {
         val defaultAccount = settings.defaultAccount.first()
+        val defaultCurrency = settings.defaultCurrency.first()
 
         AppLogger.info("Simulate", "Simulating notification")
 
-        val result = ParserEngine.parse(title, text, "expenses:unknown", defaultAccount)
+        val result = ParserEngine.parse(title, text, "expenses:unknown", defaultAccount, defaultCurrency)
         if (result == null) {
             AppLogger.warn("Simulate", "No number found")
             emitMessage("No number found in notification text.")

@@ -39,15 +39,17 @@ object NotificationHandler {
         title: String,
         text: String,
         defaultAccount: String,
+        currency: String = "",
         rules: List<CategorizationRule> = emptyList(),
     ): Transaction? {
         val expenseAccount = matchCategory(title, rules)
-        return ParserEngine.parse(title, text, expenseAccount, defaultAccount)
+        return ParserEngine.parse(title, text, expenseAccount, defaultAccount, currency)
     }
 
     fun createBestEffortTransaction(
         title: String,
         defaultAccount: String,
+        currency: String = "",
         rules: List<CategorizationRule> = emptyList(),
         date: String = LocalDate.now().toString(),
     ): Transaction {
@@ -56,8 +58,8 @@ object NotificationHandler {
             date = date,
             payee = title,
             postings = listOf(
-                Posting(account = expenseAccount, amount = "", currency = ""),
-                Posting(account = defaultAccount, amount = "", currency = ""),
+                Posting(account = expenseAccount, amount = "", currency = currency),
+                Posting(account = defaultAccount, amount = "", currency = currency),
             ),
             source = Source.Notification,
         )
@@ -69,10 +71,11 @@ object NotificationHandler {
         text: String,
         allowedPackages: Set<String>,
         defaultAccount: String,
+        currency: String = "",
         rules: List<CategorizationRule> = emptyList(),
     ): Transaction? {
         if (!shouldProcess(packageName, allowedPackages)) return null
-        return parseTransaction(title, text, defaultAccount, rules)
-            ?: createBestEffortTransaction(title, defaultAccount, rules)
+        return parseTransaction(title, text, defaultAccount, currency, rules)
+            ?: createBestEffortTransaction(title, defaultAccount, currency, rules)
     }
 }
