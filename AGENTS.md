@@ -62,6 +62,18 @@ prevent edit conflicts:
   Manager without updating `devenv.nix`, or paths will drift.
 - No CI, no pre-commit hooks. Verification is manual.
 
+## Device etiquette (user runs opencode on the same phone)
+
+- **Never send adb input events (`input tap` / `input text` / keyevents) without the user
+  preparing for it.** The phone is in active use; blind input has landed in the user's
+  editor before. Always guard inputs with a focus check (`dumpsys window | grep
+  mCurrentFocus`) and abort if the app isn't focused.
+- **Screenshot protocol:** first output one line like "In ~5 seconds I will take a
+  screenshot — switch to the app", wait ~10 s (sleep in the same command), capture only
+  if `mCurrentFocus` is `org.notifledger.app`, then **bring Termux back to the
+  foreground** (`am start -n com.termux/com.termux.app.TermuxActivity`) so the user knows
+  the screenshot is done.
+
 ## Commands
 
 - Build: `./gradlew assembleDebug`
