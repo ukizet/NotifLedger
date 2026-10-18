@@ -1,12 +1,21 @@
 package org.notifledger.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -27,18 +36,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.R
+import org.notifledger.app.stats.CategoryTotal
+import org.notifledger.app.stats.PeriodTotal
 import org.notifledger.app.stats.Statistics
 import org.notifledger.app.ui.components.DonutChart
 import org.notifledger.app.ui.components.DonutSlice
 import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 import org.notifledger.app.ui.components.SpendingBarChart
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun StatisticsScreen(
     viewModel: MainViewModel,
@@ -76,8 +88,7 @@ fun StatisticsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(16.dp),
         ) {
             AccountDropdown(
                 selected = selectedAccounts,
@@ -136,45 +147,96 @@ fun StatisticsScreen(
 
                 Spacer(Modifier.height(8.dp))
 
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text(
-                            text = stringResource(R.string.stats_spending_by_category),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        DonutChart(
-                            slices = categories.map {
-                                DonutSlice(it.label, it.total, "${it.total.toPlainString()} $currency")
-                            },
-                            centerValue = "${categories.sumOf { it.total }.toPlainString()} $currency",
-                            centerLabel = "",
-                            currency = currency,
-                        )
+                val pagerState = rememberPagerState(pageCount = { 2 })
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                ) { page ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        when (page) {
+                            0 -> DonutCard(categories = categories, currency = currency)
+                            1 -> BarsCard(periods = periods)
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
-
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text(
-                            text = stringResource(R.string.stats_spending_over_time),
-                            style = MaterialTheme.typography.titleMedium,
+                    repeat(2) { page ->
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (pagerState.currentPage == page) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    },
+                                ),
                         )
-                        Spacer(Modifier.height(12.dp))
-                        SpendingBarChart(periods = periods)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DonutCard(
+    categories: List<CategoryTotal>,
+    currency: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.stats_spending_by_category),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(12.dp))
+            DonutChart(
+                slices = categories.map {
+                    DonutSlice(it.label, it.total, "${it.total.toPlainString()} $currency")
+                },
+                centerValue = categories.sumOf { it.total }.toPlainString(),
+                centerLabel = currency,
+                currency = currency,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BarsCard(
+    periods: List<PeriodTotal>,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.stats_spending_over_time),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(12.dp))
+            SpendingBarChart(periods = periods)
         }
     }
 }
