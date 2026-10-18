@@ -12,6 +12,9 @@ local.properties
 # Local device screenshots (contain real transaction data)
 notifledger-screenshots/
 
+# Local opencode session config
+.opencode/
+
 # Signing material must never be committed
 *.jks
 *.keystore
