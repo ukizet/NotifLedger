@@ -20,8 +20,8 @@
     <!-- Bottom navigation -->
     <string name="nav_rules">Rules</string>
     <string name="nav_journal">Journal</string>
-    <string name="nav_sources">Sources</string>
     <string name="nav_test">Test</string>
+    <string name="nav_statistics">Stats</string>
 
     <!-- Transaction form fields -->
     <string name="amount">Amount</string>
@@ -108,6 +108,21 @@
     <string name="no_sources_hint">No apps selected. Tap \"Add app\" to choose which apps to listen to.</string>
     <string name="search_apps">Search apps…</string>
     <string name="no_apps_match">No apps match your search.</string>
+
+    <!-- Statistics -->
+    <string name="statistics">Statistics</string>
+    <string name="stats_all_accounts">All accounts</string>
+    <string name="stats_days">Days</string>
+    <string name="stats_spending_by_category">Spending by category</string>
+    <string name="stats_spending_over_time">Spending over time</string>
+    <string name="stats_in_currency">in %1$s</string>
+    <string name="stats_no_expenses">No expenses in this period.</string>
+    <string name="stats_other">Other</string>
+    <plurals name="stats_transaction_count">
+        <item quantity="one">%1$d transaction</item>
+        <item quantity="other">%1$d transactions</item>
+    </plurals>
+    <string name="stats_empty">No transactions in this period.</string>
 
     <!-- Categorization rules -->
     <string name="add_rule">Add rule</string>

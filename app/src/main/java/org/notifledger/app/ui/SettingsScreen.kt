@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.BellOff
+import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,6 +52,7 @@ import org.notifledger.app.ui.util.rememberListenerEnabled
 fun SettingsScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit,
+    onNavigateToSources: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -113,6 +115,33 @@ fun SettingsScreen(
                     OutlinedButton(onClick = { pickFileLauncher.launch(arrayOf("*/*")) }) {
                         Text(stringResource(R.string.select_journal_file))
                     }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Card(
+                onClick = onNavigateToSources,
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.notification_sources), style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.notif_sources_intro),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(Lucide.ChevronRight, contentDescription = null)
                 }
             }
 

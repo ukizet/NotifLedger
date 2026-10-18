@@ -67,6 +67,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .sorted()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val journalEntries: StateFlow<List<JournalEntry>> = _allEntries.asStateFlow()
+
     private val _sortOrder = MutableStateFlow(SortOrder.NewestFirst)
     val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
 

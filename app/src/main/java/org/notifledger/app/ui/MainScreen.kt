@@ -60,8 +60,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.Bot
+import com.composables.icons.lucide.ChartColumn
 import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.List
@@ -487,10 +487,10 @@ private fun MainBottomBar(
             onClick = { navController.navigate(Screen.RawJournal.route) },
         )
         BottomNavItem(
-            icon = Lucide.Bell,
-            label = stringResource(R.string.nav_sources),
-            selected = route == Screen.NotificationSources.route,
-            onClick = { navController.navigate(Screen.NotificationSources.route) },
+            icon = Lucide.ChartColumn,
+            label = stringResource(R.string.nav_statistics),
+            selected = route == Screen.Statistics.route,
+            onClick = { navController.navigate(Screen.Statistics.route) },
         )
         BottomNavItem(
             icon = Lucide.ScrollText,

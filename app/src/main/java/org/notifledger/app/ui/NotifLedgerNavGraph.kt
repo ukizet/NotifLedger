@@ -63,6 +63,14 @@ fun NotifLedgerNavGraph(
             SettingsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onNavigateToSources = { navController.navigate(Screen.NotificationSources.route) },
+            )
+        }
+
+        composable(Screen.Statistics.route) {
+            StatisticsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
             )
         }
     }
