@@ -215,6 +215,25 @@ class EntryListTest {
     }
 
     @Test
+    fun `empty list with out of range page returns page zero of one`() {
+        val page = EntryList.visible(emptyList(), emptyList(), SortOrder.NewestFirst, 20, page = 3)
+
+        assertEquals(emptyList<JournalEntry>(), page.entries)
+        assertEquals(0, page.page)
+        assertEquals(1, page.pageCount)
+    }
+
+    @Test
+    fun `exact multiple page count keeps the last page full`() {
+        val entries = (1..4).map { entry("2026-01-0$it") }
+        val page = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 2, page = 1)
+
+        assertEquals(listOf("2026-01-02", "2026-01-01"), page.entries.map { it.date })
+        assertEquals(1, page.page)
+        assertEquals(2, page.pageCount)
+    }
+
+    @Test
     fun `page count is computed after filters are applied`() {
         val entries = listOf(
             entryWithAccounts("2026-01-01", "expenses:groceries"),

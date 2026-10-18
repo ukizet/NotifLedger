@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -131,11 +132,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settings.pageLimit.collect { _pageLimit.value = it }
         }
         viewModelScope.launch {
-            settings.journalPath.collect { path ->
+            settings.journalPath.distinctUntilChanged().collect { path ->
                 if (path.isNotBlank()) {
                     val content = readJournalContent(path)
                     if (content != null) {
-                        _allEntries.value = JournalWriter.readAll(content)
+                        _allEntries.value = withContext(Dispatchers.Default) { JournalWriter.readAll(content) }
                     }
                 } else {
                     _allEntries.value = emptyList()
@@ -210,11 +211,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun nextPage() {
-        if (_page.value < entryPage.value.pageCount - 1) _page.value += 1
+        val page = entryPage.value
+        if (page.page < page.pageCount - 1) _page.value = page.page + 1
     }
 
     fun previousPage() {
-        if (_page.value > 0) _page.value -= 1
+        val page = entryPage.value
+        if (page.page > 0) _page.value = page.page - 1
     }
 
     fun addTransaction(tx: Transaction) {
@@ -224,7 +227,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val path = settings.journalPath.first()
                 if (path.isBlank()) return@withLock
                 val existing = readJournalContent(path) ?: return@withLock
-                val result = JournalWriter.appendToContent(existing, tx)
+                val result = withContext(Dispatchers.Default) { JournalWriter.appendToContent(existing, tx) }
                 if (writeJournalContent(path, result.content)) {
                     emitMessage("Saved")
                     _allEntries.value = result.entries
@@ -242,7 +245,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val path = settings.journalPath.first()
                 if (path.isBlank()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
-                val result = JournalWriter.replaceInContent(content, offset, tx)
+                val result = withContext(Dispatchers.Default) { JournalWriter.replaceInContent(content, offset, tx) }
                 val wrote = writeJournalContent(path, result.content)
                 emitSaveResult(wrote)
                 if (wrote) _allEntries.value = result.entries
@@ -257,7 +260,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val path = settings.journalPath.first()
                 if (path.isBlank()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
-                val result = JournalWriter.deleteFromContent(content, offset)
+                val result = withContext(Dispatchers.Default) { JournalWriter.deleteFromContent(content, offset) }
                 if (writeJournalContent(path, result.content)) {
                     emitMessage("Deleted")
                     _allEntries.value = result.entries
@@ -290,7 +293,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }.toMap()
                 if (updates.isEmpty()) return@withLock
                 val content = readJournalContent(path) ?: return@withLock
-                val result = JournalWriter.replaceManyInContent(content, updates)
+                val result = withContext(Dispatchers.Default) { JournalWriter.replaceManyInContent(content, updates) }
                 if (writeJournalContent(path, result.content)) {
                     emitMessage("Updated ${updates.size}")
                     _allEntries.value = result.entries
@@ -313,7 +316,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (path.isNotBlank()) {
                     val content = readJournalContent(path)
                     if (content != null) {
-                        _allEntries.value = JournalWriter.readAll(content)
+                        _allEntries.value = withContext(Dispatchers.Default) { JournalWriter.readAll(content) }
                     }
                 }
             }
@@ -342,7 +345,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@withLock "No journal file set."
             }
             val existing = readJournalContent(path) ?: return@withLock "Read failed — see Logs"
-            val writeResult = JournalWriter.appendToContent(existing, result)
+            val writeResult = withContext(Dispatchers.Default) { JournalWriter.appendToContent(existing, result) }
             if (!writeJournalContent(path, writeResult.content)) {
                 emitMessage("Save failed — see Logs")
                 return@withLock "Save failed — see Logs"

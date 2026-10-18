@@ -137,4 +137,47 @@ class FilterIOTest {
             loaded,
         )
     }
+
+    @Test
+    fun `mode beats legacy active when both are present`() {
+        val dir = File(tempDir, "mode-beats-active")
+        dir.mkdirs()
+        File(dir, "filters.yaml").writeText(
+            """
+            - label: Precedence
+              account: expenses:precedence
+              mode: exclude
+              active: true
+            """.trimIndent()
+        )
+
+        val loaded = FilterIO.loadFilters(dir)
+
+        assertEquals(
+            listOf(
+                TransactionFilter(label = "Precedence", account = "expenses:precedence", mode = FilterMode.EXCLUDE),
+            ),
+            loaded,
+        )
+    }
+
+    @Test
+    fun `mode parsing is case-insensitive`() {
+        val dir = File(tempDir, "mode-case")
+        dir.mkdirs()
+        File(dir, "filters.yaml").writeText(
+            """
+            - label: Shouty
+              account: expenses:shouty
+              mode: EXCLUDE
+            """.trimIndent()
+        )
+
+        val loaded = FilterIO.loadFilters(dir)
+
+        assertEquals(
+            listOf(TransactionFilter(label = "Shouty", account = "expenses:shouty", mode = FilterMode.EXCLUDE)),
+            loaded,
+        )
+    }
 }

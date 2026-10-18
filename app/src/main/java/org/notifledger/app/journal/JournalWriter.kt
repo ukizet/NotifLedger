@@ -72,11 +72,17 @@ object JournalWriter {
     }
 
     /**
+     * Append a transaction to existing journal content without parsing the result.
+     * Use when the caller only needs the updated text.
+     */
+    fun appendToContentRaw(existingContent: String, tx: Transaction): String =
+        existingContent.trimEnd() + "\n\n" + format(tx) + "\n"
+
+    /**
      * Append a transaction to existing journal content.
      */
     fun appendToContent(existingContent: String, tx: Transaction): JournalWriteResult {
-        val entry = format(tx)
-        val content = existingContent.trimEnd() + "\n\n" + entry + "\n"
+        val content = appendToContentRaw(existingContent, tx)
         return JournalWriteResult(content, readAll(content))
     }
 

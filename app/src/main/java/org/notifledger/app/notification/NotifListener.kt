@@ -88,9 +88,9 @@ class NotifListener : NotificationListenerService() {
                     val existing = contentResolver.openInputStream(uri)?.use {
                         it.bufferedReader().use { r -> r.readText() }
                     } ?: ""
-                    val updated = JournalWriter.appendToContent(existing, tx)
+                    val updated = JournalWriter.appendToContentRaw(existing, tx)
                     contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
-                        it.write(updated.content)
+                        it.write(updated)
                     } != null
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to write to journal", e)

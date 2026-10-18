@@ -188,6 +188,23 @@ class JournalWriterTest {
     }
 
     @Test
+    fun `appendToContentRaw matches appendToContent content`() {
+        val existing = "2026-07-12 Rema 1000\n    expenses:groceries  184.50 NOK\n    assets:bank:checking  -184.50 NOK\n"
+        val tx = Transaction(
+            date = "2026-07-13",
+            payee = "Kiwi",
+            postings = listOf(
+                Posting("expenses:groceries", "95.00", "NOK"),
+                Posting("assets:bank:checking", "", "NOK"),
+            ),
+        )
+        assertEquals(
+            JournalWriter.appendToContent(existing, tx).content,
+            JournalWriter.appendToContentRaw(existing, tx),
+        )
+    }
+
+    @Test
     fun `appendToContent returns auto-balanced posting amounts`() {
         val existing = "2026-07-12 Rema 1000\n    expenses:groceries  184.50 NOK\n    assets:bank:checking  -184.50 NOK\n"
         val tx = Transaction(
