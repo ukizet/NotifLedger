@@ -19,9 +19,10 @@ confirm it again. If nothing told you, make saying so take five seconds.**
   that touches the ledger directly.
 - Bank notifications are semi-structured noise: format varies by bank, by
   app version, by locale. Rather than hardcoding parsers per bank, the app
-  takes a simple heuristic approach: find the first number (amount) and use
-  the notification title as the payee. This is surprisingly robust and
-  eliminates the need for per-bank configuration.
+  takes a simple heuristic approach: find the first parseable number in the
+  notification body, falling back to the title (amount), and use the notification title
+  as the payee. This is surprisingly robust and eliminates the need for
+  per-bank configuration.
 - Reviewing every single notification-sourced transaction defeats the point —
   the whole reason to build this is to stop typing things by hand. The
   tradeoff is accepting that parsing needs to be trustworthy and mistakes need
@@ -42,7 +43,7 @@ NotificationListenerService captures it
 Filter by allowlist: is this app selected in notification sources?
         │
         ▼
-Simple parse: find the first number → amount, use title → payee
+Simple parse: find the first parseable number in the body (title fallback) → amount, use title → payee
         │
         ▼
 Categorization pass (rule-based: payee patterns → account)
@@ -104,7 +105,8 @@ lands.
 
 **4.3 Parser engine**
 - No per-bank configuration needed. The parser simply:
-  - Finds the **first number** in the notification title+text → amount
+  - Finds the **first parseable number** in the notification body, falling
+    back to the title → amount
   - Uses the **notification title** as the payee/description
   - Creates a two-posting transaction (expense account + auto-balanced money account)
 - If no number is found, a best-effort entry is posted with empty amount
@@ -175,7 +177,10 @@ lands.
   total of the other postings is computed and used.
 - Writes to a file path the user points at (Storage Access Framework) — the
   app never maintains a separate in-app copy of the data that could drift
-  from what's on disk.
+  from what's on disk. One deliberate exception: a `journal_backup.txt`
+  recovery copy in the app's internal files, written before each journal
+  write and only ever consulted by hand to recover from a failed or
+  truncated write — never merged back into the journal automatically.
 
 ## 5. What "semi-automatic" means here, concretely
 
@@ -228,7 +233,8 @@ same way.
 - No cloud backend. Sync is whatever the user already uses for the journal
   file (Syncthing, git, etc.), not something this app owns.
 - No auto-categorization via ML — rule-based stays legible and debuggable.
-- No per-bank parser rules — the simple heuristic (first number = amount,
-  title = payee) is enough for most bank notifications.
+- No per-bank parser rules — the simple heuristic (first parseable number in
+  the body, title fallback = amount; title = payee) is enough for most bank
+  notifications.
 - No DI framework — manual construction via `Application` class.
 - No Room database — all state is in the journal file or DataStore.

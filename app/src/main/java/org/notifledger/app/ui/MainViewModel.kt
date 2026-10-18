@@ -1,7 +1,6 @@
 package org.notifledger.app.ui
 
 import android.app.Application
-import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +34,9 @@ import org.notifledger.app.settings.SettingsManager
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    val settings = SettingsManager(application)
+    private val app = getApplication<NotifLedgerApp>()
+
+    val settings = app.settings
 
     /** Captured so we can unsubscribe in [onCleared] (AppLogger outlives the ViewModel). */
     private var logSubscription: ((List<LogEntry>) -> Unit)? = null
@@ -101,7 +102,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val categorizationRules: StateFlow<List<CategorizationRule>> = _categorizationRules.asStateFlow()
 
     val defaultAccount = settings.defaultAccount.stateIn(
-        viewModelScope, SharingStarted.WhileSubscribed(5_000), "assets:bank:checking"
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsManager.DEFAULT_ACCOUNT
     )
 
     val journalPath = settings.journalPath.stateIn(
@@ -109,7 +110,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val defaultCurrency = settings.defaultCurrency.stateIn(
-        viewModelScope, SharingStarted.WhileSubscribed(5_000), "NOK"
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsManager.DEFAULT_CURRENCY
     )
 
     val notificationSources = settings.notificationSources.stateIn(
@@ -175,31 +176,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         logSubscription = null
     }
 
-    private suspend fun readJournalContent(uriString: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val uri = Uri.parse(uriString)
-            val context = getApplication<Application>()
-            context.contentResolver.openInputStream(uri)?.use {
-                it.bufferedReader().use { r -> r.readText() }
-            } ?: ""
-        } catch (e: Exception) {
-            AppLogger.error("Journal", "Read failed: ${e.message}")
-            emitMessage("Couldn't read journal — see Logs")
-            null
-        }
-    }
-
-    private suspend fun writeJournalContent(uriString: String, content: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val uri = Uri.parse(uriString)
-            val context = getApplication<Application>()
-            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
-                it.write(content)
-            } != null
-        } catch (e: Exception) {
-            AppLogger.error("Journal", "Write failed: ${e.message}")
-            false
-        }
+    private suspend fun readJournalContent(uriString: String): String? {
+        val content = app.journalRepository.read(uriString)
+        if (content == null) emitMessage("Couldn't read journal — see Logs")
+        return content
     }
 
     fun setSortOrder(order: SortOrder) {
@@ -224,84 +204,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addTransaction(tx: Transaction) {
         viewModelScope.launch {
-            val app = getApplication<NotifLedgerApp>()
-            app.journalWriteMutex.withLock {
-                val path = settings.journalPath.first()
-                if (path.isBlank()) return@withLock
-                val existing = readJournalContent(path) ?: return@withLock
-                val result = withContext(Dispatchers.Default) { JournalWriter.appendToContent(existing, tx) }
-                if (writeJournalContent(path, result.content)) {
-                    emitMessage("Saved")
-                    _allEntries.value = result.entries
-                } else {
-                    emitMessage("Save failed — see Logs")
-                }
+            val path = settings.journalPath.first()
+            if (path.isBlank()) return@launch
+            val result = app.journalRepository.append(path, tx)
+            if (result != null) {
+                emitMessage("Saved")
+                _allEntries.value = result.entries
+            } else {
+                emitMessage("Save failed — see Logs")
             }
         }
     }
 
     fun editTransaction(offset: Int, tx: Transaction) {
         viewModelScope.launch {
-            val app = getApplication<NotifLedgerApp>()
-            app.journalWriteMutex.withLock {
-                val path = settings.journalPath.first()
-                if (path.isBlank()) return@withLock
-                val content = readJournalContent(path) ?: return@withLock
-                val result = withContext(Dispatchers.Default) { JournalWriter.replaceInContent(content, offset, tx) }
-                val wrote = writeJournalContent(path, result.content)
-                emitSaveResult(wrote)
-                if (wrote) _allEntries.value = result.entries
-            }
+            val path = settings.journalPath.first()
+            if (path.isBlank()) return@launch
+            val result = app.journalRepository.replace(path, offset, tx)
+            emitSaveResult(result != null)
+            if (result != null) _allEntries.value = result.entries
         }
     }
 
     fun deleteTransaction(offset: Int) {
         viewModelScope.launch {
-            val app = getApplication<NotifLedgerApp>()
-            app.journalWriteMutex.withLock {
-                val path = settings.journalPath.first()
-                if (path.isBlank()) return@withLock
-                val content = readJournalContent(path) ?: return@withLock
-                val result = withContext(Dispatchers.Default) { JournalWriter.deleteFromContent(content, offset) }
-                if (writeJournalContent(path, result.content)) {
-                    emitMessage("Deleted")
-                    _allEntries.value = result.entries
-                } else {
-                    emitMessage("Delete failed — see Logs")
-                }
+            val path = settings.journalPath.first()
+            if (path.isBlank()) return@launch
+            val result = app.journalRepository.delete(path, offset)
+            if (result != null) {
+                emitMessage("Deleted")
+                _allEntries.value = result.entries
+            } else {
+                emitMessage("Delete failed — see Logs")
             }
         }
     }
 
     fun changeTransactions(offsets: Set<Int>, date: String?, payee: String?, currency: String?, account: String?) {
         viewModelScope.launch {
-            val app = getApplication<NotifLedgerApp>()
-            app.journalWriteMutex.withLock {
-                val path = settings.journalPath.first()
-                if (path.isBlank()) return@withLock
-                val byOffset = _allEntries.value.associateBy { it.lineOffset }
-                val updates = offsets.mapNotNull { offset ->
-                    val entry = byOffset[offset] ?: return@mapNotNull null
-                    val postings = entry.postings.mapIndexed { index, posting ->
-                        val withCurrency = if (currency != null) posting.copy(currency = currency) else posting
-                        if (account != null && index == 0) withCurrency.copy(account = account) else withCurrency
-                    }
-                    offset to Transaction(
-                        date = date ?: entry.date,
-                        payee = payee ?: entry.payee,
-                        postings = postings,
-                        note = entry.note,
-                    )
-                }.toMap()
-                if (updates.isEmpty()) return@withLock
-                val content = readJournalContent(path) ?: return@withLock
-                val result = withContext(Dispatchers.Default) { JournalWriter.replaceManyInContent(content, updates) }
-                if (writeJournalContent(path, result.content)) {
-                    emitMessage("Updated ${updates.size}")
-                    _allEntries.value = result.entries
-                } else {
-                    emitMessage("Update failed — see Logs")
+            val path = settings.journalPath.first()
+            if (path.isBlank()) return@launch
+            val byOffset = _allEntries.value.associateBy { it.lineOffset }
+            val updates = offsets.mapNotNull { offset ->
+                val entry = byOffset[offset] ?: return@mapNotNull null
+                val postings = entry.postings.mapIndexed { index, posting ->
+                    val withCurrency = if (currency != null) posting.copy(currency = currency) else posting
+                    if (account != null && index == 0) withCurrency.copy(account = account) else withCurrency
                 }
+                offset to Transaction(
+                    date = date ?: entry.date,
+                    payee = payee ?: entry.payee,
+                    postings = postings,
+                    note = entry.note,
+                )
+            }.toMap()
+            if (updates.isEmpty()) return@launch
+            val result = app.journalRepository.replaceMany(path, updates)
+            if (result != null) {
+                emitMessage("Updated ${updates.size}")
+                _allEntries.value = result.entries
+            } else {
+                emitMessage("Update failed — see Logs")
             }
         }
     }
@@ -310,16 +273,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emitMessage(if (wrote) "Saved" else "Save failed — see Logs")
     }
 
+    /** Raw text for the read-only viewer; null when the read failed — the screen renders its own error state. */
+    suspend fun readRawJournal(path: String): String? = app.journalRepository.read(path)
+
     fun reloadEntries() {
         viewModelScope.launch {
-            val app = getApplication<NotifLedgerApp>()
-            app.journalWriteMutex.withLock {
-                val path = settings.journalPath.first()
-                if (path.isNotBlank()) {
-                    val content = readJournalContent(path)
-                    if (content != null) {
-                        _allEntries.value = withContext(Dispatchers.Default) { JournalWriter.readAll(content) }
-                    }
+            val path = settings.journalPath.first()
+            if (path.isNotBlank()) {
+                val content = readJournalContent(path)
+                if (content != null) {
+                    _allEntries.value = withContext(Dispatchers.Default) { JournalWriter.readAll(content) }
                 }
             }
         }
@@ -338,26 +301,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return "No number found in notification text."
         }
 
-        val app = getApplication<NotifLedgerApp>()
-        return app.journalWriteMutex.withLock {
-            val path = settings.journalPath.first()
-            if (path.isBlank()) {
-                AppLogger.warn("Simulate", "No journal file set")
-                emitMessage("No journal file set.")
-                return@withLock "No journal file set."
-            }
-            val existing = readJournalContent(path) ?: return@withLock "Read failed — see Logs"
-            val writeResult = withContext(Dispatchers.Default) { JournalWriter.appendToContent(existing, result) }
-            if (!writeJournalContent(path, writeResult.content)) {
-                emitMessage("Save failed — see Logs")
-                return@withLock "Save failed — see Logs"
-            }
-            _allEntries.value = writeResult.entries
-            val msg = "Written: ${result.date} ${result.payee} — ${result.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}"
-            AppLogger.info("Simulate", "Notification written ${result.date}")
-            emitMessage("Simulated: $msg")
-            msg
+        val path = settings.journalPath.first()
+        if (path.isBlank()) {
+            AppLogger.warn("Simulate", "No journal file set")
+            emitMessage("No journal file set.")
+            return "No journal file set."
         }
+        val writeResult = app.journalRepository.append(path, result)
+        if (writeResult == null) {
+            emitMessage("Save failed — see Logs")
+            return "Save failed — see Logs"
+        }
+        _allEntries.value = writeResult.entries
+        val msg = "Written: ${result.date} ${result.payee} — ${result.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}"
+        AppLogger.info("Simulate", "Notification written ${result.date}")
+        emitMessage("Simulated: $msg")
+        return msg
     }
 
     private fun getRulesDir(): java.io.File {

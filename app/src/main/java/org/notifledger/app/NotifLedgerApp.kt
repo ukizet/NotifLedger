@@ -4,7 +4,7 @@ import android.app.Application
 import android.net.Uri
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
+import org.notifledger.app.journal.JournalRepository
 import org.notifledger.app.log.AppLogger
 import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.notification.NotificationHelper
@@ -14,11 +14,10 @@ import java.io.File
 
 class NotifLedgerApp : Application() {
 
-    /** Shared mutex for journal read-modify-write — used by both NotifListener and MainViewModel. */
-    val journalWriteMutex = Mutex()
-
     lateinit var settings: SettingsManager
         private set
+
+    val journalRepository = JournalRepository(this)
 
     private var cachedRules: List<CategorizationRule> = emptyList()
 
@@ -47,36 +46,58 @@ class NotifLedgerApp : Application() {
     /** Used by NotifListener to get the current journal path as a Uri. */
     fun getJournalUri(): Uri? {
         val path = runBlocking {
-            try { settings.journalPath.first().takeIf { it.isNotBlank() } } catch (_: Exception) { null }
+            try {
+                settings.journalPath.first().takeIf { it.isNotBlank() }
+            } catch (e: Exception) {
+                AppLogger.warn("App", "Failed to read journal path: ${e.message}")
+                null
+            }
         } ?: return null
-        return try { Uri.parse(path) } catch (_: Exception) { null }
+        return try {
+            Uri.parse(path)
+        } catch (e: Exception) {
+            AppLogger.warn("App", "Failed to parse journal path '$path': ${e.message}")
+            null
+        }
     }
 
     /** Used by NotifListener to get the default payment account. */
     fun getDefaultAccount(): String = runBlocking {
         try {
             settings.defaultAccount.first()
-        } catch (_: Exception) { "assets:bank:checking" }
+        } catch (e: Exception) {
+            AppLogger.warn("App", "Failed to read default account: ${e.message}")
+            SettingsManager.DEFAULT_ACCOUNT
+        }
     }
 
     /** Used by NotifListener to get the default currency. */
     fun getDefaultCurrency(): String = runBlocking {
         try {
             settings.defaultCurrency.first()
-        } catch (_: Exception) { "NOK" }
+        } catch (e: Exception) {
+            AppLogger.warn("App", "Failed to read default currency: ${e.message}")
+            SettingsManager.DEFAULT_CURRENCY
+        }
     }
 
     /** Used by NotifListener to get allowed notification packages. */
     fun getAllowedNotificationPackages(): Set<String> = runBlocking {
         try {
             settings.notificationSources.first().toSet()
-        } catch (_: Exception) { emptySet() }
+        } catch (e: Exception) {
+            AppLogger.warn("App", "Failed to read notification sources: ${e.message}")
+            emptySet()
+        }
     }
 
     /** Used by NotifListener to get the raw processed-notification dedup state. */
     fun getProcessedNotificationIds(): String = runBlocking {
         try {
             settings.processedNotificationIds.first()
-        } catch (_: Exception) { "" }
+        } catch (e: Exception) {
+            AppLogger.warn("App", "Failed to read processed notification ids: ${e.message}")
+            ""
+        }
     }
 }

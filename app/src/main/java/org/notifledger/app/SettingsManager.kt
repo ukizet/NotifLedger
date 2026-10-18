@@ -28,13 +28,13 @@ class SettingsManager(private val context: Context) {
     /** The default payment account for the money-side leg of transactions. */
     val defaultAccount: Flow<String>
         get() = context.dataStore.data.map { prefs ->
-            prefs[DEFAULT_ACCOUNT] ?: DEFAULT_ACCOUNT_VALUE
+            prefs[DEFAULT_ACCOUNT_KEY] ?: DEFAULT_ACCOUNT
         }
 
     /** The default currency for new transactions. */
     val defaultCurrency: Flow<String>
         get() = context.dataStore.data.map { prefs ->
-            prefs[DEFAULT_CURRENCY] ?: DEFAULT_CURRENCY_VALUE
+            prefs[DEFAULT_CURRENCY_KEY] ?: DEFAULT_CURRENCY
         }
 
     /** How to sort transactions on the main screen. */
@@ -78,13 +78,13 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setDefaultAccount(account: String) {
         context.dataStore.edit { prefs ->
-            prefs[DEFAULT_ACCOUNT] = account
+            prefs[DEFAULT_ACCOUNT_KEY] = account
         }
     }
 
     suspend fun setDefaultCurrency(currency: String) {
         context.dataStore.edit { prefs ->
-            prefs[DEFAULT_CURRENCY] = currency
+            prefs[DEFAULT_CURRENCY_KEY] = currency
         }
     }
 
@@ -120,8 +120,8 @@ class SettingsManager(private val context: Context) {
 
     companion object {
         private val JOURNAL_PATH = stringPreferencesKey("journal_path")
-        private val DEFAULT_ACCOUNT = stringPreferencesKey("default_account")
-        private val DEFAULT_CURRENCY = stringPreferencesKey("default_currency")
+        private val DEFAULT_ACCOUNT_KEY = stringPreferencesKey("default_account")
+        private val DEFAULT_CURRENCY_KEY = stringPreferencesKey("default_currency")
         private val NOTIF_SOURCES = stringPreferencesKey("notification_sources")
         private val SORT_ORDER = stringPreferencesKey("sort_order")
         private val PAGE_LIMIT = intPreferencesKey("page_limit")
@@ -129,8 +129,7 @@ class SettingsManager(private val context: Context) {
         private val PROCESSED_NOTIFICATION_IDS = stringPreferencesKey("processed_notification_ids")
 
         const val DEFAULT_FILTER_ROW_LIMIT = 5
-
-        private const val DEFAULT_ACCOUNT_VALUE = "assets:bank:checking"
-        private const val DEFAULT_CURRENCY_VALUE = "NOK"
+        const val DEFAULT_ACCOUNT = "assets:bank:checking"
+        const val DEFAULT_CURRENCY = "NOK"
     }
 }

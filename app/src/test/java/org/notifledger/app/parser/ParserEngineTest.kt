@@ -8,8 +8,6 @@ import org.notifledger.app.model.Source
 
 class ParserEngineTest {
 
-    // ── Existing tests (preserved) ──────────────────────────────────────────
-
     @Test
     fun `parse extracts first number as amount and title as payee`() {
         val result = ParserEngine.parse(
@@ -276,11 +274,9 @@ class ParserEngineTest {
             expenseAccount = "expenses:unknown",
             moneyAccount = "assets:bank:checking",
         )
-        // "Kjøp 123" is the payee (title), but combined = "Kjøp 123 Betalt 99 kr"
-        // First number found is "123" from the title
         assertNotNull(result)
         assertEquals("Kjøp 123", result!!.payee)
-        assertEquals("123", result.postings[0].amount)
+        assertEquals("99", result.postings[0].amount)
     }
 
     @Test
@@ -320,6 +316,19 @@ class ParserEngineTest {
         // Regex finds "1.234,56" -> replace comma -> "1.234.56"
         // toDoubleOrNull returns null for multiple dots
         assertNull(result)
+    }
+
+    @Test
+    fun `body has unparseable number, title amount wins`() {
+        val result = ParserEngine.parse(
+            title = "Vipps 250,00",
+            text = "Betalt 12.3.4",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("Vipps 250,00", result!!.payee)
+        assertEquals("250.00", result.postings[0].amount)
     }
 
     @Test

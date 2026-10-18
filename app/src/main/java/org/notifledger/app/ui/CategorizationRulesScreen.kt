@@ -165,6 +165,7 @@ private fun CategorizationRuleForm(
 ) {
     var match by remember { mutableStateOf(initial?.match ?: "") }
     var account by remember { mutableStateOf(initial?.account ?: "") }
+    val matchValid = isValidRegex(match)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -173,6 +174,12 @@ private fun CategorizationRuleForm(
             label = { Text(stringResource(R.string.payee_pattern_label)) },
             placeholder = { Text(stringResource(R.string.payee_pattern_placeholder)) },
             singleLine = true,
+            isError = !matchValid,
+            supportingText = if (!matchValid) {
+                { Text(stringResource(R.string.invalid_regex_pattern)) }
+            } else {
+                null
+            },
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
@@ -190,10 +197,13 @@ private fun CategorizationRuleForm(
                 onClick = {
                     onSave(CategorizationRule(match = match.trim(), account = account.trim()))
                 },
-                enabled = account.isNotBlank(),
+                enabled = account.isNotBlank() && matchValid,
             ) {
                 Text(stringResource(R.string.save))
             }
         }
     }
 }
+
+private fun isValidRegex(pattern: String): Boolean =
+    runCatching { Regex(pattern) }.isSuccess

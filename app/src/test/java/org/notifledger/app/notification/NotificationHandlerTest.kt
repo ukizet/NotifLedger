@@ -139,24 +139,10 @@ class NotificationHandlerTest {
     // ── processNotification (integration) ────────────────────────────────────
 
     @Test
-    fun `processNotification returns null when package not allowed`() {
-        val result = NotificationHandler.processNotification(
-            packageName = "com.malicious.app",
-            title = "Betalt",
-            text = "Betalt 100 kr",
-            allowedPackages = setOf("com.actual.bank"),
-            defaultAccount = "assets:bank:checking",
-        )
-        assertNull(result)
-    }
-
-    @Test
     fun `processNotification returns parsed transaction when number found`() {
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "Varekjøp",
             text = "Varekjøp 549,00 kr hos MENY",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
         )
         assertNotNull(result)
@@ -168,10 +154,8 @@ class NotificationHandlerTest {
     @Test
     fun `processNotification returns best-effort when no number found`() {
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "Hei",
             text = "Ingen pengeinformasjon",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
         )
         assertNotNull(result)
@@ -185,10 +169,8 @@ class NotificationHandlerTest {
     @Test
     fun `processNotification best-effort entry is written for empty text`() {
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "SMS",
             text = "",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
         )
         // No number in empty text + title "SMS" = no number found → best-effort
@@ -201,10 +183,8 @@ class NotificationHandlerTest {
     @Test
     fun `processNotification propagates passed currency to parsed transaction`() {
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "Varekjøp",
             text = "Varekjøp 549,00 kr hos MENY",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
             currency = "EUR",
         )
@@ -216,10 +196,8 @@ class NotificationHandlerTest {
     @Test
     fun `processNotification propagates passed currency to best-effort transaction`() {
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "Hei",
             text = "Ingen pengeinformasjon",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
             currency = "EUR",
         )
@@ -336,10 +314,8 @@ class NotificationHandlerTest {
     fun `processNotification uses rules for parsed transaction`() {
         val rules = listOf(CategorizationRule(match = "Meny", account = "expenses:meny"))
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "Meny Løren",
             text = "Betalt 549,00 kr",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
             rules = rules,
         )
@@ -352,10 +328,8 @@ class NotificationHandlerTest {
     fun `processNotification uses rules for best-effort transaction`() {
         val rules = listOf(CategorizationRule(match = "Hei", account = "expenses:greeting"))
         val result = NotificationHandler.processNotification(
-            packageName = "com.example.bank",
             title = "Hei",
             text = "Ingen tall",
-            allowedPackages = setOf("com.example.bank"),
             defaultAccount = "assets:bank:checking",
             rules = rules,
         )

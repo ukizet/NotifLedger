@@ -16,7 +16,8 @@ object ParserEngine {
      * Parse notification text into a Transaction.
      * Returns null if no number can be found.
      *
-     * @param title  Notification title (used as payee)
+     * @param title  Notification title (used as payee, and as the amount fallback
+     *               when the body has no parseable number)
      * @param text   Notification body text (searched for amount)
      * @param expenseAccount  Account for the expense side
      * @param moneyAccount    Account for the money side (auto-balanced)
@@ -29,20 +30,26 @@ object ParserEngine {
         moneyAccount: String,
         currency: String = "",
     ): Transaction? {
-        val combined = "$title $text".trim()
-        val amount = findNumber(combined) ?: return null
-        val cleanAmount = amount.replace(",", ".").replace(" ", "")
-        if (cleanAmount.toDoubleOrNull() == null) return null
+        val amount = parseableAmount(findNumber(text)) ?: parseableAmount(findNumber(title)) ?: return null
 
         return Transaction(
             date = LocalDate.now().toString(),
             payee = title,
             postings = listOf(
-                Posting(account = expenseAccount, amount = cleanAmount, currency = currency),
+                Posting(account = expenseAccount, amount = amount, currency = currency),
                 Posting(account = moneyAccount, amount = "", currency = currency),
             ),
             source = org.notifledger.app.model.Source.Notification,
         )
+    }
+
+    /**
+     * Normalize a matched number (comma decimals, spaces) and return it only
+     * when it actually parses as a Double.
+     */
+    private fun parseableAmount(matched: String?): String? {
+        val cleaned = matched?.replace(",", ".")?.replace(" ", "") ?: return null
+        return if (cleaned.toDoubleOrNull() == null) null else cleaned
     }
 
     /**

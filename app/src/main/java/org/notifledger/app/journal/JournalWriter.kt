@@ -6,19 +6,16 @@ import org.notifledger.app.model.Transaction
 /**
  * Reads and writes hledger journal text.
  *
- * Pure text operations — no file I/O. The ViewModel handles reading/writing
- * through Android's ContentResolver (so content:// URIs work).
+ * Pure text operations — no file I/O. The JournalRepository handles
+ * reading/writing through Android's ContentResolver (so content:// URIs work).
  */
 object JournalWriter {
 
     private val dateLineRegex = Regex("^(\\d{4}-\\d{2}-\\d{2})(\\s.*)?$")
-    private val postingLine4SpaceRegex = Regex("^\\s{4,}.*")
-    private val postingLineTabRegex = Regex("^\\t+.*")
-    private val postingLineLowercaseRegex = Regex("^\\s+[a-z].*")
+    // hledger journals in the wild mix 4-space, tab, and shallow lowercase-indented postings
+    private val postingLineRegex = Regex("^(?:\\s{4,}.*|\\t+.*|\\s+[a-z].*)$")
     private val postingSplitRegex = Regex("\\s{2,}|\\t")
-    private val amountWithCurrencyRegex = Regex("^(-?)([\\d.,]+)\\s*([a-zA-Z]+)$")
-    private val amountWithCurrencyNoSignRegex = Regex("([\\d.,]+)\\s*([a-zA-Z]+)$")
-    private val amountOnlyRegex = Regex("^(-?)([\\d.,]+)$")
+    private val amountRegex = Regex("^(-?)([\\d.,]+)(?:\\s*([a-zA-Z]+))?$")
     private val entryDateRegex = Regex("^\\d{4}-\\d{2}-\\d{2}(\\s|$)")
 
     /**
@@ -172,7 +169,7 @@ object JournalWriter {
         while (j < lines.size) {
             val next = lines[j]
             if (next.isBlank()) { j++; break }
-            if (next.matches(postingLine4SpaceRegex) || next.matches(postingLineTabRegex) || next.matches(postingLineLowercaseRegex)) {
+            if (next.matches(postingLineRegex)) {
                 postingLines.add(next.trim())
                 j++
             } else {
@@ -222,22 +219,10 @@ object JournalWriter {
      * Returns a pair of (amountString, currency) or null if no valid amount found.
      */
     private fun parsePostingAmount(amountStr: String): Pair<String, String>? {
-        val amountMatch = amountWithCurrencyRegex.find(amountStr)
-            ?: amountWithCurrencyNoSignRegex.find(amountStr)
-        if (amountMatch != null) {
-            val neg = if (amountMatch.groupValues[1] == "-") "-" else ""
-            val num = amountMatch.groupValues[2].replace(",", ".")
-            val cur = amountMatch.groupValues[3]
-            return Pair(neg + num, cur)
-        }
-        // Try just a number without currency
-        val numMatch = amountOnlyRegex.find(amountStr)
-        if (numMatch != null) {
-            val neg = if (numMatch.groupValues[1] == "-") "-" else ""
-            val num = numMatch.groupValues[2].replace(",", ".")
-            return Pair(neg + num, "")
-        }
-        return null
+        val match = amountRegex.find(amountStr) ?: return null
+        val neg = if (match.groupValues[1] == "-") "-" else ""
+        val num = match.groupValues[2].replace(",", ".")
+        return Pair(neg + num, match.groupValues[3])
     }
 
     fun countEntryLines(lines: List<String>, startOffset: Int): Int {
@@ -255,33 +240,16 @@ object JournalWriter {
         val lines = content.lines().toMutableList()
         val entryLineCount = countEntryLines(lines, lineOffset)
         repeat(entryLineCount) { if (lineOffset < lines.size) lines.removeAt(lineOffset) }
-        var extraRemoved = 0
         // Remove blank line separator that follows the entry
         if (lineOffset < lines.size && lines[lineOffset].isBlank()) {
             lines.removeAt(lineOffset)
-            extraRemoved++
         }
         // Remove blank line separator that precedes the entry
         if (lineOffset > 0 && lines[lineOffset - 1].isBlank()) {
             lines.removeAt(lineOffset - 1)
-            extraRemoved++
         }
         val newContent = lines.joinToString("\n")
-        val totalRemoved = entryLineCount + extraRemoved
-
-        // Build updated entries list with correct lineOffsets
-        val existingEntries = readAll(content)
-        val newEntries = existingEntries
-            .filter { it.lineOffset != lineOffset }
-            .map { entry ->
-                if (entry.lineOffset > lineOffset) {
-                    entry.copy(lineOffset = entry.lineOffset - totalRemoved)
-                } else {
-                    entry
-                }
-            }
-
-        return JournalWriteResult(newContent, newEntries)
+        return JournalWriteResult(newContent, readAll(newContent))
     }
 
     private fun pad(s: String, target: Int): String {

@@ -139,41 +139,24 @@ fun LogsScreen(
             if (rawMode) {
                 RawLogView(rawText)
             } else {
+                val levelFilters = listOf(
+                    null to R.string.filter_all,
+                    LogLevel.INFO to R.string.filter_info,
+                    LogLevel.WARN to R.string.filter_warnings,
+                    LogLevel.ERROR to R.string.filter_errors,
+                )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FilterChip(
-                        selected = filterLevel == null,
-                        onClick = { filterLevel = null },
-                        label = { Text(stringResource(R.string.filter_all)) },
-                    )
-                    FilterChip(
-                        selected = filterLevel == LogLevel.INFO,
-                        onClick = { filterLevel = LogLevel.INFO },
-                        label = { Text(stringResource(R.string.filter_info)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
-                    FilterChip(
-                        selected = filterLevel == LogLevel.WARN,
-                        onClick = { filterLevel = LogLevel.WARN },
-                        label = { Text(stringResource(R.string.filter_warnings)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            // Teal/secondary reads as "less severe than error", not as a third accent category.
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        ),
-                    )
-                    FilterChip(
-                        selected = filterLevel == LogLevel.ERROR,
-                        onClick = { filterLevel = LogLevel.ERROR },
-                        label = { Text(stringResource(R.string.filter_errors)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
-                        ),
-                    )
+                    levelFilters.forEach { (level, labelRes) ->
+                        FilterChip(
+                            selected = filterLevel == level,
+                            onClick = { filterLevel = level },
+                            label = { Text(stringResource(labelRes)) },
+                            colors = levelFilterChipColors(level),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -242,6 +225,23 @@ fun LogsScreen(
             },
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun levelFilterChipColors(level: LogLevel?) = when (level) {
+    LogLevel.INFO -> FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+    )
+    // Teal/secondary reads as "less severe than error", not as a third accent category.
+    LogLevel.WARN -> FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    )
+    LogLevel.ERROR -> FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+    )
+    else -> FilterChipDefaults.filterChipColors()
 }
 
 @Composable

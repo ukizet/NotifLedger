@@ -34,7 +34,8 @@ object NotificationHelper {
                 context.contentResolver,
                 "enabled_notification_listeners",
             ) ?: ""
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            AppLogger.warn("Notif", "Failed to read enabled notification listeners: ${e.message}")
             ""
         }
         return isComponentInListeners(raw, context.packageName, LISTENER_COMPONENT)

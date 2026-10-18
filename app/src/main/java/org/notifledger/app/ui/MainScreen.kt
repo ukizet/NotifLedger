@@ -9,14 +9,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,8 +28,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -54,36 +50,30 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
-import androidx.navigation.compose.currentBackStackEntryAsState
-import com.composables.icons.lucide.Bot
-import com.composables.icons.lucide.ChartColumn
 import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.ChevronRight
-import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
-import com.composables.icons.lucide.ScrollText
-import com.composables.icons.lucide.Settings
-import com.composables.icons.lucide.Tags
 import com.composables.icons.lucide.X
 import kotlinx.coroutines.launch
 import org.notifledger.app.R
+import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
 import org.notifledger.app.ui.components.BulkChangeDialog
 import org.notifledger.app.ui.components.FilterRow
+import org.notifledger.app.ui.components.MainBottomBar
 import org.notifledger.app.ui.components.OnboardingChecklist
 import org.notifledger.app.ui.components.OnboardingItem
+import org.notifledger.app.ui.components.SimulateNotificationDialog
 import org.notifledger.app.ui.components.TransactionForm
 import org.notifledger.app.ui.components.TransactionRow
 import org.notifledger.app.ui.util.rememberListenerEnabled
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
@@ -97,16 +87,12 @@ fun MainScreen(
 ) {
     val entryPage by viewModel.entryPage.collectAsState()
     val entries = entryPage.entries
-    val filters by viewModel.filters.collectAsState()
-    val filterLimit by viewModel.filterLimit.collectAsState()
     val hasEntries by viewModel.hasEntries.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
     val notificationSources by viewModel.notificationSources.collectAsState()
     val payeeSuggestions by viewModel.existingPayees.collectAsState()
     val accountSuggestions by viewModel.existingAccounts.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
-    val currentSortOrder by viewModel.sortOrder.collectAsState()
-    val currentPageLimit by viewModel.pageLimit.collectAsState()
     val defaultAccount by viewModel.defaultAccount.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val uiMessage by viewModel.uiMessage.collectAsState()
@@ -159,6 +145,29 @@ fun MainScreen(
         if (editingIndex >= entries.size) editingIndex = -1
     }
 
+    val onboardingItems = listOf(
+        OnboardingItem(
+            label = stringResource(R.string.onboarding_pick_journal),
+            done = journalPath.isNotBlank(),
+            onClick = { pickFileLauncher.launch(arrayOf("*/*")) },
+        ),
+        OnboardingItem(
+            label = stringResource(R.string.onboarding_grant_access),
+            done = isListening,
+            onClick = onNavigateToSettings,
+        ),
+        OnboardingItem(
+            label = stringResource(R.string.onboarding_add_source),
+            done = notificationSources.isNotEmpty(),
+            onClick = onNavigateToNotificationSources,
+        ),
+        OnboardingItem(
+            label = stringResource(R.string.onboarding_set_account),
+            done = defaultAccount.isNotBlank(),
+            onClick = onNavigateToSettings,
+        ),
+    )
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -170,239 +179,25 @@ fun MainScreen(
             }
         },
     ) { padding ->
-        val onboardingItems = listOf(
-            OnboardingItem(
-                label = stringResource(R.string.onboarding_pick_journal),
-                done = journalPath.isNotBlank(),
-                onClick = { pickFileLauncher.launch(arrayOf("*/*")) },
-            ),
-            OnboardingItem(
-                label = stringResource(R.string.onboarding_grant_access),
-                done = isListening,
-                onClick = onNavigateToSettings,
-            ),
-            OnboardingItem(
-                label = stringResource(R.string.onboarding_add_source),
-                done = notificationSources.isNotEmpty(),
-                onClick = onNavigateToNotificationSources,
-            ),
-            OnboardingItem(
-                label = stringResource(R.string.onboarding_set_account),
-                done = defaultAccount.isNotBlank(),
-                onClick = onNavigateToSettings,
-            ),
-        )
-
-        if (journalPath.isBlank()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                TextButton(
-                    onClick = { pickFileLauncher.launch(arrayOf("*/*")) },
-                ) {
-                    Text(stringResource(R.string.no_journal_selected))
-                }
-            }
-        } else if (!hasEntries) {
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                OnboardingChecklist(
-                    items = onboardingItems,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator()
-                    } else {
-                        Text(stringResource(R.string.no_transactions))
-                    }
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                OnboardingChecklist(
-                    items = onboardingItems,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-                // Sort + page limit controls
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    var sortExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = sortExpanded,
-                        onExpandedChange = { sortExpanded = it },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        OutlinedTextField(
-                            value = sortLabel(currentSortOrder),
-                            onValueChange = {},
-                            readOnly = true,
-                            singleLine = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sortExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            textStyle = MaterialTheme.typography.bodySmall,
-                        )
-                        ExposedDropdownMenu(
-                            expanded = sortExpanded,
-                            onDismissRequest = { sortExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.sort_newest_first)) },
-                                onClick = { viewModel.setSortOrder(SortOrder.NewestFirst); sortExpanded = false },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.sort_oldest_first)) },
-                                onClick = { viewModel.setSortOrder(SortOrder.OldestFirst); sortExpanded = false },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.sort_highest_amount)) },
-                                onClick = { viewModel.setSortOrder(SortOrder.HighestAmount); sortExpanded = false },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.sort_lowest_amount)) },
-                                onClick = { viewModel.setSortOrder(SortOrder.LowestAmount); sortExpanded = false },
-                            )
-                        }
-                    }
-
-                    var editingLimit by remember { mutableStateOf(false) }
-                    var limitInput by remember { mutableStateOf("") }
-                    if (editingLimit) {
-                        OutlinedTextField(
-                            value = limitInput,
-                            onValueChange = { limitInput = it.filter(Char::isDigit) },
-                            label = { Text(stringResource(R.string.page_size)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(120.dp),
-                            textStyle = MaterialTheme.typography.bodySmall,
-                        )
-                        TextButton(
-                            onClick = {
-                                val parsed = limitInput.toIntOrNull()
-                                if (parsed != null && parsed > 0) {
-                                    viewModel.setPageLimit(parsed)
-                                    editingLimit = false
-                                }
-                            },
-                        ) {
-                            Text(stringResource(R.string.done), style = MaterialTheme.typography.bodySmall)
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = {
-                                limitInput = currentPageLimit.toString()
-                                editingLimit = true
-                            },
-                        ) {
-                            Text(
-                                stringResource(R.string.page_per_page, currentPageLimit),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-
-                FilterRow(
-                    filters = filters,
-                    maxFilters = filterLimit,
-                    accountSuggestions = accountSuggestions,
-                    onAdd = viewModel::addFilter,
-                    onRename = viewModel::renameFilter,
-                    onChangeCategory = viewModel::changeFilterCategory,
-                    onDelete = viewModel::deleteFilter,
-                    onToggle = viewModel::cycleFilterMode,
-                )
-
-                if (selectedOffsets.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.bulk_selected_count, selectedOffsets.size),
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(onClick = { showBulkChange = true }) {
-                            Text(stringResource(R.string.bulk_change_title))
-                        }
-                        IconButton(onClick = { selectedOffsets = emptySet() }) {
-                            Icon(Lucide.X, contentDescription = stringResource(R.string.cancel))
-                        }
-                    }
-                }
-
-                if (entries.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(stringResource(R.string.no_matching_transactions))
-                    }
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(bottom = 88.dp),
-                    ) {
-                        itemsIndexed(entries, key = { _, entry -> entry.lineOffset }) { index, entry ->
-                            TransactionRow(
-                                entry = entry,
-                                onClick = {
-                                    if (selectedOffsets.isEmpty()) {
-                                        editingIndex = index
-                                    } else {
-                                        selectedOffsets = if (entry.lineOffset in selectedOffsets) {
-                                            selectedOffsets - entry.lineOffset
-                                        } else {
-                                            selectedOffsets + entry.lineOffset
-                                        }
-                                    }
-                                },
-                                onLongClick = { selectedOffsets = selectedOffsets + entry.lineOffset },
-                                selected = entry.lineOffset in selectedOffsets,
-                                selectionMode = selectedOffsets.isNotEmpty(),
-                                onDelete = { viewModel.deleteTransaction(entry.lineOffset) },
-                            )
-                        }
-                    }
-
-                    if (entryPage.pageCount > 1) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            IconButton(
-                                onClick = viewModel::previousPage,
-                                enabled = entryPage.page > 0,
-                            ) {
-                                Icon(
-                                    Lucide.ChevronLeft,
-                                    contentDescription = stringResource(R.string.page_previous),
-                                )
-                            }
-                            Text(stringResource(R.string.page_of, entryPage.page + 1, entryPage.pageCount))
-                            IconButton(
-                                onClick = viewModel::nextPage,
-                                enabled = entryPage.page < entryPage.pageCount - 1,
-                            ) {
-                                Icon(
-                                    Lucide.ChevronRight,
-                                    contentDescription = stringResource(R.string.page_next),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            OnboardingChecklist(
+                items = onboardingItems,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            MainContent(
+                journalPath = journalPath,
+                hasEntries = hasEntries,
+                isLoading = isLoading,
+                onPickFile = { pickFileLauncher.launch(arrayOf("*/*")) },
+                viewModel = viewModel,
+                entries = entries,
+                entryPage = entryPage,
+                listState = listState,
+                selectedOffsets = selectedOffsets,
+                onSelectedOffsetsChange = { selectedOffsets = it },
+                onEdit = { editingIndex = it },
+                onShowBulkChange = { showBulkChange = true },
+            )
         }
     }
 
@@ -430,31 +225,342 @@ fun MainScreen(
 
     if (editingIndex >= 0 && editingIndex < entries.size) {
         val entry = entries[editingIndex]
-        val tx = Transaction(
-            date = entry.date,
-            payee = entry.payee,
-            postings = entry.postings,
-            note = entry.note,
-        )
-        AlertDialog(
-            onDismissRequest = { editingIndex = -1 },
-            title = { Text(stringResource(R.string.edit_transaction)) },
-            text = {
-                TransactionForm(
-                    initial = tx,
-                    payeeSuggestions = payeeSuggestions,
-                    accountSuggestions = accountSuggestions,
-                    defaultCurrency = defaultCurrency,
-                    onSave = { updated ->
-                        viewModel.editTransaction(entry.lineOffset, updated)
-                        editingIndex = -1
-                    },
-                    onCancel = { editingIndex = -1 },
-                )
+        EditTransactionDialog(
+            entry = entry,
+            payeeSuggestions = payeeSuggestions,
+            accountSuggestions = accountSuggestions,
+            defaultCurrency = defaultCurrency,
+            onSave = { updated ->
+                viewModel.editTransaction(entry.lineOffset, updated)
+                editingIndex = -1
             },
-            confirmButton = {},
+            onDismiss = { editingIndex = -1 },
         )
     }
+}
+
+@Composable
+private fun MainContent(
+    journalPath: String,
+    hasEntries: Boolean,
+    isLoading: Boolean,
+    onPickFile: () -> Unit,
+    viewModel: MainViewModel,
+    entries: List<JournalEntry>,
+    entryPage: EntryPage,
+    listState: LazyListState,
+    selectedOffsets: Set<Int>,
+    onSelectedOffsetsChange: (Set<Int>) -> Unit,
+    onEdit: (Int) -> Unit,
+    onShowBulkChange: () -> Unit,
+) {
+    when {
+        journalPath.isBlank() -> NoJournalContent(onPickFile)
+        !hasEntries -> EmptyJournalContent(isLoading)
+        else -> JournalContent(
+            viewModel = viewModel,
+            entries = entries,
+            entryPage = entryPage,
+            listState = listState,
+            selectedOffsets = selectedOffsets,
+            onSelectedOffsetsChange = onSelectedOffsetsChange,
+            onEdit = onEdit,
+            onShowBulkChange = onShowBulkChange,
+        )
+    }
+}
+
+@Composable
+private fun NoJournalContent(onPickFile: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        TextButton(onClick = onPickFile) {
+            Text(stringResource(R.string.no_journal_selected))
+        }
+    }
+}
+
+@Composable
+private fun EmptyJournalContent(isLoading: Boolean) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else {
+            Text(stringResource(R.string.no_transactions))
+        }
+    }
+}
+
+@Composable
+private fun JournalContent(
+    viewModel: MainViewModel,
+    entries: List<JournalEntry>,
+    entryPage: EntryPage,
+    listState: LazyListState,
+    selectedOffsets: Set<Int>,
+    onSelectedOffsetsChange: (Set<Int>) -> Unit,
+    onEdit: (Int) -> Unit,
+    onShowBulkChange: () -> Unit,
+) {
+    val filters by viewModel.filters.collectAsState()
+    val filterLimit by viewModel.filterLimit.collectAsState()
+    val accountSuggestions by viewModel.existingAccounts.collectAsState()
+    val sortOrder by viewModel.sortOrder.collectAsState()
+    val pageLimit by viewModel.pageLimit.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        SortControls(
+            sortOrder = sortOrder,
+            onSortOrderChange = viewModel::setSortOrder,
+            pageLimit = pageLimit,
+            onPageLimitChange = viewModel::setPageLimit,
+        )
+
+        FilterRow(
+            filters = filters,
+            maxFilters = filterLimit,
+            accountSuggestions = accountSuggestions,
+            onAdd = viewModel::addFilter,
+            onRename = viewModel::renameFilter,
+            onChangeCategory = viewModel::changeFilterCategory,
+            onDelete = viewModel::deleteFilter,
+            onToggle = viewModel::cycleFilterMode,
+        )
+
+        if (selectedOffsets.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.bulk_selected_count, selectedOffsets.size),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onShowBulkChange) {
+                    Text(stringResource(R.string.bulk_change_title))
+                }
+                IconButton(onClick = { onSelectedOffsetsChange(emptySet()) }) {
+                    Icon(Lucide.X, contentDescription = stringResource(R.string.cancel))
+                }
+            }
+        }
+
+        if (entries.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(stringResource(R.string.no_matching_transactions))
+            }
+        } else {
+            TransactionList(
+                entries = entries,
+                listState = listState,
+                selectedOffsets = selectedOffsets,
+                onSelectedOffsetsChange = onSelectedOffsetsChange,
+                onEdit = onEdit,
+                onDelete = viewModel::deleteTransaction,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+            TransactionPager(
+                page = entryPage.page,
+                pageCount = entryPage.pageCount,
+                onPrevious = viewModel::previousPage,
+                onNext = viewModel::nextPage,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortControls(
+    sortOrder: SortOrder,
+    onSortOrderChange: (SortOrder) -> Unit,
+    pageLimit: Int,
+    onPageLimitChange: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        var sortExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = sortExpanded,
+            onExpandedChange = { sortExpanded = it },
+            modifier = Modifier.weight(1f),
+        ) {
+            OutlinedTextField(
+                value = sortLabel(sortOrder),
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sortExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                textStyle = MaterialTheme.typography.bodySmall,
+            )
+            ExposedDropdownMenu(
+                expanded = sortExpanded,
+                onDismissRequest = { sortExpanded = false },
+            ) {
+                SortOrder.entries.forEach { order ->
+                    DropdownMenuItem(
+                        text = { Text(sortLabel(order)) },
+                        onClick = {
+                            onSortOrderChange(order)
+                            sortExpanded = false
+                        },
+                    )
+                }
+            }
+        }
+
+        var editingLimit by remember { mutableStateOf(false) }
+        var limitInput by remember { mutableStateOf("") }
+        if (editingLimit) {
+            OutlinedTextField(
+                value = limitInput,
+                onValueChange = { limitInput = it.filter(Char::isDigit) },
+                label = { Text(stringResource(R.string.page_size)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.width(120.dp),
+                textStyle = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(
+                onClick = {
+                    val parsed = limitInput.toIntOrNull()
+                    if (parsed != null && parsed > 0) {
+                        onPageLimitChange(parsed)
+                        editingLimit = false
+                    }
+                },
+            ) {
+                Text(stringResource(R.string.done), style = MaterialTheme.typography.bodySmall)
+            }
+        } else {
+            OutlinedButton(
+                onClick = {
+                    limitInput = pageLimit.toString()
+                    editingLimit = true
+                },
+            ) {
+                Text(
+                    stringResource(R.string.page_per_page, pageLimit),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransactionList(
+    entries: List<JournalEntry>,
+    listState: LazyListState,
+    selectedOffsets: Set<Int>,
+    onSelectedOffsetsChange: (Set<Int>) -> Unit,
+    onEdit: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        state = listState,
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        contentPadding = PaddingValues(bottom = 88.dp),
+    ) {
+        itemsIndexed(entries, key = { _, entry -> entry.lineOffset }) { index, entry ->
+            TransactionRow(
+                entry = entry,
+                onClick = {
+                    if (selectedOffsets.isEmpty()) {
+                        onEdit(index)
+                    } else {
+                        onSelectedOffsetsChange(
+                            if (entry.lineOffset in selectedOffsets) {
+                                selectedOffsets - entry.lineOffset
+                            } else {
+                                selectedOffsets + entry.lineOffset
+                            },
+                        )
+                    }
+                },
+                onLongClick = { onSelectedOffsetsChange(selectedOffsets + entry.lineOffset) },
+                selected = entry.lineOffset in selectedOffsets,
+                selectionMode = selectedOffsets.isNotEmpty(),
+                onDelete = { onDelete(entry.lineOffset) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TransactionPager(
+    page: Int,
+    pageCount: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    if (pageCount <= 1) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onPrevious,
+            enabled = page > 0,
+        ) {
+            Icon(Lucide.ChevronLeft, contentDescription = stringResource(R.string.page_previous))
+        }
+        Text(stringResource(R.string.page_of, page + 1, pageCount))
+        IconButton(
+            onClick = onNext,
+            enabled = page < pageCount - 1,
+        ) {
+            Icon(Lucide.ChevronRight, contentDescription = stringResource(R.string.page_next))
+        }
+    }
+}
+
+@Composable
+private fun EditTransactionDialog(
+    entry: JournalEntry,
+    payeeSuggestions: List<String>,
+    accountSuggestions: List<String>,
+    defaultCurrency: String,
+    onSave: (Transaction) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val tx = Transaction(
+        date = entry.date,
+        payee = entry.payee,
+        postings = entry.postings,
+        note = entry.note,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.edit_transaction)) },
+        text = {
+            TransactionForm(
+                initial = tx,
+                payeeSuggestions = payeeSuggestions,
+                accountSuggestions = accountSuggestions,
+                defaultCurrency = defaultCurrency,
+                onSave = onSave,
+                onCancel = onDismiss,
+            )
+        },
+        confirmButton = {},
+    )
 }
 
 @Composable
@@ -463,131 +569,4 @@ private fun sortLabel(key: SortOrder): String = when (key) {
     SortOrder.OldestFirst -> stringResource(R.string.sort_oldest_first)
     SortOrder.HighestAmount -> stringResource(R.string.sort_highest_amount)
     SortOrder.LowestAmount -> stringResource(R.string.sort_lowest_amount)
-}
-
-@Composable
-private fun MainBottomBar(
-    navController: NavController,
-    onSimulate: () -> Unit,
-) {
-    val currentRoute by navController.currentBackStackEntryAsState()
-    val route = currentRoute?.destination?.route
-
-    NavigationBar {
-        BottomNavItem(
-            icon = Lucide.Tags,
-            label = stringResource(R.string.nav_rules),
-            selected = route == Screen.CategorizationRules.route,
-            onClick = { navController.navigate(Screen.CategorizationRules.route) },
-        )
-        BottomNavItem(
-            icon = Lucide.List,
-            label = stringResource(R.string.nav_journal),
-            selected = route == Screen.RawJournal.route,
-            onClick = { navController.navigate(Screen.RawJournal.route) },
-        )
-        BottomNavItem(
-            icon = Lucide.ChartColumn,
-            label = stringResource(R.string.nav_statistics),
-            selected = route == Screen.Statistics.route,
-            onClick = { navController.navigate(Screen.Statistics.route) },
-        )
-        BottomNavItem(
-            icon = Lucide.ScrollText,
-            label = stringResource(R.string.logs),
-            selected = route == Screen.Logs.route,
-            onClick = { navController.navigate(Screen.Logs.route) },
-        )
-        BottomNavItem(
-            icon = Lucide.Bot,
-            label = stringResource(R.string.nav_test),
-            selected = false,
-            onClick = onSimulate,
-        )
-        BottomNavItem(
-            icon = Lucide.Settings,
-            label = stringResource(R.string.settings),
-            selected = route == Screen.Settings.route,
-            onClick = { navController.navigate(Screen.Settings.route) },
-        )
-    }
-}
-
-@Composable
-private fun RowScope.BottomNavItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    NavigationBarItem(
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-        selected = selected,
-        onClick = onClick,
-    )
-}
-
-@Composable
-private fun SimulateNotificationDialog(
-    viewModel: MainViewModel,
-    onDismiss: () -> Unit,
-) {
-    var title by remember { mutableStateOf("") }
-    var text by remember { mutableStateOf("") }
-    var resultMessage by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.simulate_notification)) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.simulate_intro),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.notif_title_label)) },
-                    placeholder = { Text(stringResource(R.string.notif_title_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text(stringResource(R.string.notif_text_label)) },
-                    placeholder = { Text(stringResource(R.string.notif_text_placeholder)) },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                )
-                if (resultMessage.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(resultMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        },
-        confirmButton = {
-            OutlinedButton(
-                onClick = {
-                    scope.launch {
-                        resultMessage = viewModel.simulateNotification(
-                            title = title.trim(),
-                            text = text.trim(),
-                        )
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.test_parse_write))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
-        },
-    )
 }

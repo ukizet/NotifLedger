@@ -13,34 +13,36 @@ flowchart TB
     end
 
     subgraph app["NotifLedger (single process)"]
-        application["NotifLedgerApp<br/>Application: settings, rules cache,<br/>shared journalWriteMutex"]
+        application["NotifLedgerApp<br/>Application: settings, rules cache"]
         listener["NotifListener<br/>NotificationListenerService"]
         handler["NotificationHandler<br/>allowlist check + categorization"]
-        parser["ParserEngine<br/>first number = amount, title = payee"]
+        parser["ParserEngine<br/>first parseable number = amount (body first, title fallback)"]
         helper["NotificationHelper<br/>persistent listening status notification"]
         dedup["NotificationDedup<br/>processed notification ids"]
         activity["MainActivity<br/>Compose + NavHost"]
-        vm["MainViewModel<br/>all UI state, SAF journal I/O"]
+        vm["MainViewModel<br/>all UI state"]
+        repo["JournalRepository<br/>single journal I/O point:<br/>mutex + Dispatchers.IO + backup"]
         writer["JournalWriter<br/>pure text: format / readAll / replace / delete"]
     end
 
     subgraph storage["Storage"]
         journal["hledger journal file<br/>content:// URI via SAF"]
         datastore["DataStore Preferences<br/>journal path, accounts, sources, sort, page size"]
-        files["App-internal filesDir<br/>rules/categorization.yaml<br/>filters/filters.yaml<br/>logs/notifledger.log"]
+        files["App-internal filesDir<br/>rules/categorization.yaml<br/>filters/filters.yaml<br/>logs/notifledger.log<br/>journal_backup.txt"]
     end
 
     bank --> framework --> listener
     listener --> handler --> parser
     listener --> dedup
-    listener --> writer
-    listener -->|read + append via ContentResolver| journal
+    listener --> repo
+    vm --> repo
+    repo --> writer
+    repo -->|read + write via ContentResolver| journal
     listener -->|runBlocking reads| application
     application --> datastore
     application -->|loads rules at startup| files
 
-    activity --> vm --> writer
-    vm -->|read + write via ContentResolver| journal
+    activity --> vm
     vm --> datastore
     vm -->|rules + filters YAML| files
     listener -.->|posts status notification| helper
@@ -49,7 +51,10 @@ flowchart TB
 No DI framework and no database: `NotifLedgerApp` constructs `SettingsManager`,
 the notification path reads settings from it synchronously (`runBlocking`), and
 the only durable stores are the journal file, DataStore, and a few YAML/log
-files.
+files. Both the listener and the ViewModel reach the journal only through
+`JournalRepository`, which serializes every read-modify-write with its own
+mutex, runs the ContentResolver work on `Dispatchers.IO`, and keeps a
+`journal_backup.txt` recovery copy before each write.
 
 ## 2. Notification capture flow (automatic path)
 
@@ -58,32 +63,37 @@ sequenceDiagram
     participant Bank as Bank app
     participant System as Android framework
     participant L as NotifListener
+    participant Q as in-memory Channel
+    participant W as IO worker coroutine
     participant D as NotificationDedup
     participant H as NotificationHandler
     participant P as ParserEngine
-    participant J as JournalWriter
+    participant R as JournalRepository
     participant SAF as Journal file (SAF)
     participant DS as DataStore
 
     Bank->>System: posts notification
     System->>L: onNotificationPosted(sbn)
+    L->>Q: trySend(sbn)
+    Note over L: returns immediately — the main looper never blocks
 
-    L->>L: shouldProcess(package in allowed sources)?
-    Note over L: not allowlisted → return, nothing recorded
+    Q->>W: sbn
+    W->>W: shouldProcess(package in allowed sources)?
+    Note over W: not allowlisted → drop, nothing recorded
 
-    L->>L: journal URI set?
-    Note over L: no path configured → warn + return
+    W->>W: journal URI set?
+    Note over W: no path configured → warn + drop
 
-    L->>DS: processedNotificationIds (runBlocking)
-    L->>D: add(postTime|key)
+    W->>DS: processedNotificationIds
+    W->>D: add(postTime|key)
     alt id already seen
-        D-->>L: null → return (no duplicate entry)
+        D-->>W: null → drop (no duplicate entry)
     else new id
-        D-->>L: updated raw ids (kept, max 200)
+        D-->>W: updated raw ids (kept, max 200)
     end
 
-    L->>L: extract android.title / android.text
-    L->>H: processNotification(title, text, rules, ...)
+    W->>W: extract android.title / android.text
+    W->>H: processNotification(title, text, rules, ...)
     H->>P: parse(title, text, category account, default account, currency)
     alt number found
         P-->>H: Transaction(amount, payee = title)
@@ -92,22 +102,24 @@ sequenceDiagram
         H->>H: createBestEffortTransaction(...)
         Note over H: empty amounts, still posted — never dropped
     end
-    H-->>L: Transaction
+    H-->>W: Transaction
 
-    L->>SAF: read existing content (ContentResolver)
-    L->>J: appendToContentRaw(existing, tx)
-    J-->>L: updated content
-    L->>SAF: write content ("wt")
-    L->>DS: persist updated dedup ids
+    W->>R: appendRaw(journalUri, tx)
+    R->>SAF: read existing content + backup + write content ("wt")
+    W->>DS: persist updated dedup ids
 ```
 
 Notes:
 
-- The whole read-modify-write runs under `NotifLedgerApp.journalWriteMutex`,
-  the same mutex `MainViewModel` uses, so UI edits and notifications can't
-  interleave.
+- `onNotificationPosted` only enqueues into an in-memory `Channel`; ONE IO
+  worker coroutine consumes it, so the main looper never blocks. Dedup,
+  parsing, and `JournalRepository.appendRaw` all run in that worker
+  (`handleNotification` is `suspend`).
+- `JournalRepository` serializes the read-modify-write with its own mutex —
+  the same one the ViewModel path goes through — so UI edits and notifications
+  can't interleave.
 - `onListenerConnected` re-posts the status notification and replays
-  `activeNotifications` (still in the shade) through the same path, sorted by
+  `activeNotifications` (still in the shade) through the same worker, sorted by
   post time — dedup prevents double entries.
 - Categorization (`NotificationHandler.matchCategory`) walks the user's rules
   in order, first regex match wins, fallback `expenses:unknown`.
@@ -121,24 +133,25 @@ sequenceDiagram
     participant U as User
     participant QA as QuickAddScreen
     participant VM as MainViewModel
-    participant M as journalWriteMutex
-    participant J as JournalWriter
+    participant R as JournalRepository
+    participant J as JournalWriter (pure)
     participant SAF as Journal file (SAF)
 
     U->>QA: amount, payee, account (pre-filled default)
     QA->>VM: addTransaction(tx)
-    VM->>M: withLock
-    VM->>SAF: read existing content
-    VM->>J: appendToContent(existing, tx)
-    J-->>VM: updated content + entries
-    VM->>SAF: write content
+    VM->>R: append(path, tx)
+    R->>J: appendToContent(existing, tx)
+    J-->>R: updated content + entries
+    R->>SAF: backup + write content
+    R-->>VM: JournalWriteResult
     VM-->>QA: emitMessage("Saved" / "Save failed — see Logs")
     VM->>VM: _allEntries updated
 ```
 
 Manual and notification transactions produce the same `Transaction` type and
 land in the journal identically — `JournalWriter` doesn't know which path
-produced them.
+produced them. The ViewModel no longer touches `ContentResolver` directly:
+`JournalRepository` owns all journal I/O.
 
 ## 4. UI state flow
 
@@ -182,21 +195,24 @@ account, exclude = no posting touches an excluded account), sort by
 sequenceDiagram
     participant UI as MainScreen
     participant VM as MainViewModel
-    participant M as journalWriteMutex
+    participant R as JournalRepository
+    participant J as JournalWriter (pure)
     participant SAF as Journal file (SAF)
 
     UI->>VM: editTransaction(offset, tx) / deleteTransaction(offset)
-    VM->>M: withLock
-    VM->>SAF: read current content
-    Note over VM: JournalWriter.replaceInContent / deleteFromContent<br/>uses lineOffset from the parsed JournalEntry
-    VM->>SAF: write content
+    VM->>R: replace(path, offset, tx) / delete(path, offset)
+    R->>J: replaceInContent / deleteFromContent
+    Note over J: uses lineOffset from the parsed JournalEntry
+    R->>SAF: backup + write content
+    R-->>VM: JournalWriteResult
     VM->>VM: _allEntries = result.entries<br/>(lineOffsets re-derived)
     VM-->>UI: message + refreshed list
 
     UI->>VM: changeTransactions(offsets, date, payee, currency, account)
-    VM->>M: withLock
-    Note over VM: replaceManyInContent applies offsets<br/>bottom-up so earlier offsets stay valid
-    VM->>SAF: write content
+    VM->>R: replaceMany(path, updates)
+    R->>J: replaceManyInContent
+    Note over J: applies offsets<br/>bottom-up so earlier offsets stay valid
+    R->>SAF: backup + write content
 ```
 
 Entries are addressed by `lineOffset` (line index in the journal), which is why
@@ -303,6 +319,7 @@ flowchart TB
         rules["rules/categorization.yaml<br/>SnakeYAML, ordered rules"]
         filt["filters/filters.yaml<br/>SnakeYAML, label/account/mode"]
         logs["logs/notifledger.log<br/>AppLogger"]
+        backup["journal_backup.txt<br/>pre-write recovery copy"]
     end
 ```
 

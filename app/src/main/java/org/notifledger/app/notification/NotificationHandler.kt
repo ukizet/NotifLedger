@@ -1,5 +1,6 @@
 package org.notifledger.app.notification
 
+import org.notifledger.app.log.AppLogger
 import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Source
@@ -27,8 +28,8 @@ object NotificationHandler {
                     if (Regex(rule.match, RegexOption.IGNORE_CASE).containsMatchIn(title)) {
                         return rule.account
                     }
-                } catch (_: Exception) {
-                    // malformed regex — skip
+                } catch (e: Exception) {
+                    AppLogger.warn("Notif", "Skipping rule '${rule.match}': ${e.message}")
                 }
             }
         }
@@ -66,15 +67,12 @@ object NotificationHandler {
     }
 
     fun processNotification(
-        packageName: String,
         title: String,
         text: String,
-        allowedPackages: Set<String>,
         defaultAccount: String,
         currency: String = "",
         rules: List<CategorizationRule> = emptyList(),
     ): Transaction? {
-        if (!shouldProcess(packageName, allowedPackages)) return null
         return parseTransaction(title, text, defaultAccount, currency, rules)
             ?: createBestEffortTransaction(title, defaultAccount, currency, rules)
     }

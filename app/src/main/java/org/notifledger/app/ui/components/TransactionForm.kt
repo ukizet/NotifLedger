@@ -50,7 +50,6 @@ import kotlin.math.abs
  * @param defaultPaymentAccount quick-add mode: the money-side leg is editable in Show
  *   details and prefilled from Settings. When null all postings are edited directly.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionForm(
     initial: Transaction,
@@ -59,7 +58,7 @@ fun TransactionForm(
     modifier: Modifier = Modifier,
     payeeSuggestions: List<String> = emptyList(),
     accountSuggestions: List<String> = emptyList(),
-    defaultCurrency: String = "NOK",
+    defaultCurrency: String,
     defaultPaymentAccount: String? = null,
 ) {
     var payee by remember { mutableStateOf(initial.payee) }
@@ -124,35 +123,14 @@ fun TransactionForm(
         Spacer(Modifier.height(8.dp))
 
         postings.forEachIndexed { index, posting ->
-            Column(modifier = Modifier.fillMaxWidth()) {
-                AccountField(
-                    value = posting.account,
-                    onValueChange = { newAccount -> postings[index] = posting.copy(account = newAccount) },
-                    suggestions = accountSuggestions,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = posting.amount,
-                        onValueChange = { newAmount -> postings[index] = posting.copy(amount = newAmount) },
-                        label = { Text(stringResource(R.string.amount)) },
-                        placeholder = { Text(stringResource(R.string.form_amount_placeholder)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (postings.size > 2) {
-                        TextButton(onClick = { postings.removeAt(index) }) {
-                            Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
+            PostingRow(
+                posting = posting,
+                accountSuggestions = accountSuggestions,
+                showRemove = postings.size > 2,
+                onAccountChange = { newAccount -> postings[index] = posting.copy(account = newAccount) },
+                onAmountChange = { newAmount -> postings[index] = posting.copy(amount = newAmount) },
+                onRemove = { postings.removeAt(index) },
+            )
             Spacer(Modifier.height(12.dp))
         }
 
@@ -187,88 +165,28 @@ fun TransactionForm(
         }
 
         if (showDetails) {
-            var payeeExpanded by remember { mutableStateOf(false) }
-            val filteredPayees = remember(payee, payeeSuggestions) {
-                payeeSuggestions.filter { it.contains(payee, ignoreCase = true) }
-            }
-
-            ExposedDropdownMenuBox(
-                expanded = payeeExpanded && filteredPayees.isNotEmpty(),
-                onExpandedChange = { payeeExpanded = it },
-            ) {
-                OutlinedTextField(
-                    value = payee,
-                    onValueChange = {
-                        payee = it
-                        payeeExpanded = true
-                    },
-                    label = { Text(stringResource(R.string.payee)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payeeExpanded) },
-                )
-                ExposedDropdownMenu(
-                    expanded = payeeExpanded && filteredPayees.isNotEmpty(),
-                    onDismissRequest = { payeeExpanded = false },
-                ) {
-                    filteredPayees.forEach { suggestion ->
-                        DropdownMenuItem(
-                            text = { Text(suggestion) },
-                            onClick = {
-                                payee = suggestion
-                                payeeExpanded = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = currency,
-                onValueChange = { currency = it },
-                label = { Text(stringResource(R.string.currency)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            if (defaultPaymentAccount != null) {
-                Spacer(Modifier.height(8.dp))
-
-                AccountField(
-                    value = paymentAccountValue,
-                    onValueChange = { paymentAccountValue = it },
-                    suggestions = accountSuggestions,
-                    label = stringResource(R.string.default_account),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = paymentAmountText,
-                    onValueChange = { new ->
-                        val trimmed = new.trim()
-                        if (trimmed.isBlank() || trimmed == "-") {
-                            paymentAuto = true
-                        } else {
-                            paymentAuto = false
-                            paymentManual = new
-                        }
-                    },
-                    label = { Text(stringResource(R.string.amount)) },
-                    singleLine = true,
-                    isError = paymentUnbalanced,
-                    supportingText = if (paymentUnbalanced) {
-                        { Text(stringResource(R.string.form_unbalanced)) }
+            DetailsSection(
+                payee = payee,
+                onPayeeChange = { payee = it },
+                payeeSuggestions = payeeSuggestions,
+                currency = currency,
+                onCurrencyChange = { currency = it },
+                accountSuggestions = accountSuggestions,
+                defaultPaymentAccount = defaultPaymentAccount,
+                paymentAccountValue = paymentAccountValue,
+                onPaymentAccountChange = { paymentAccountValue = it },
+                paymentAmountText = paymentAmountText,
+                onPaymentAmountChange = { new ->
+                    val trimmed = new.trim()
+                    if (trimmed.isBlank() || trimmed == "-") {
+                        paymentAuto = true
                     } else {
-                        null
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+                        paymentAuto = false
+                        paymentManual = new
+                    }
+                },
+                paymentUnbalanced = paymentUnbalanced,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -312,5 +230,137 @@ fun TransactionForm(
                 Text(stringResource(R.string.save))
             }
         }
+    }
+}
+
+@Composable
+private fun PostingRow(
+    posting: Posting,
+    accountSuggestions: List<String>,
+    showRemove: Boolean,
+    onAccountChange: (String) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AccountField(
+            value = posting.account,
+            onValueChange = onAccountChange,
+            suggestions = accountSuggestions,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = posting.amount,
+                onValueChange = onAmountChange,
+                label = { Text(stringResource(R.string.amount)) },
+                placeholder = { Text(stringResource(R.string.form_amount_placeholder)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            if (showRemove) {
+                TextButton(onClick = onRemove) {
+                    Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetailsSection(
+    payee: String,
+    onPayeeChange: (String) -> Unit,
+    payeeSuggestions: List<String>,
+    currency: String,
+    onCurrencyChange: (String) -> Unit,
+    accountSuggestions: List<String>,
+    defaultPaymentAccount: String?,
+    paymentAccountValue: String,
+    onPaymentAccountChange: (String) -> Unit,
+    paymentAmountText: String,
+    onPaymentAmountChange: (String) -> Unit,
+    paymentUnbalanced: Boolean,
+) {
+    var payeeExpanded by remember { mutableStateOf(false) }
+    val filteredPayees = remember(payee, payeeSuggestions) {
+        payeeSuggestions.filter { it.contains(payee, ignoreCase = true) }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = payeeExpanded && filteredPayees.isNotEmpty(),
+        onExpandedChange = { payeeExpanded = it },
+    ) {
+        OutlinedTextField(
+            value = payee,
+            onValueChange = {
+                onPayeeChange(it)
+                payeeExpanded = true
+            },
+            label = { Text(stringResource(R.string.payee)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payeeExpanded) },
+        )
+        ExposedDropdownMenu(
+            expanded = payeeExpanded && filteredPayees.isNotEmpty(),
+            onDismissRequest = { payeeExpanded = false },
+        ) {
+            filteredPayees.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = { Text(suggestion) },
+                    onClick = {
+                        onPayeeChange(suggestion)
+                        payeeExpanded = false
+                    },
+                )
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    OutlinedTextField(
+        value = currency,
+        onValueChange = onCurrencyChange,
+        label = { Text(stringResource(R.string.currency)) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    if (defaultPaymentAccount != null) {
+        Spacer(Modifier.height(8.dp))
+
+        AccountField(
+            value = paymentAccountValue,
+            onValueChange = onPaymentAccountChange,
+            suggestions = accountSuggestions,
+            label = stringResource(R.string.default_account),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = paymentAmountText,
+            onValueChange = onPaymentAmountChange,
+            label = { Text(stringResource(R.string.amount)) },
+            singleLine = true,
+            isError = paymentUnbalanced,
+            supportingText = if (paymentUnbalanced) {
+                { Text(stringResource(R.string.form_unbalanced)) }
+            } else {
+                null
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

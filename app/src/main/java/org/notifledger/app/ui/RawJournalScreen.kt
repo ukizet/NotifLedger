@@ -1,6 +1,5 @@
 package org.notifledger.app.ui
 
-import android.net.Uri
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,14 +20,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.notifledger.app.R
-import org.notifledger.app.log.AppLogger
 import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 
 private sealed interface RawLoadState {
@@ -46,10 +41,18 @@ fun RawJournalScreen(
 ) {
     val journalPath by viewModel.journalPath.collectAsState()
     var state by remember { mutableStateOf<RawLoadState>(RawLoadState.Loading) }
-    val context = LocalContext.current
 
     LaunchedEffect(journalPath) {
-        state = if (journalPath.isBlank()) RawLoadState.Empty else loadRawJournal(journalPath, context)
+        if (journalPath.isBlank()) {
+            state = RawLoadState.Empty
+        } else {
+            val content = viewModel.readRawJournal(journalPath)
+            state = when {
+                content == null -> RawLoadState.Error
+                content.isBlank() -> RawLoadState.Empty
+                else -> RawLoadState.Loaded(content)
+            }
+        }
     }
 
     Scaffold(
@@ -91,19 +94,5 @@ fun RawJournalScreen(
                     .verticalScroll(rememberScrollState()),
             )
         }
-    }
-}
-
-private suspend fun loadRawJournal(
-    journalPath: String,
-    context: android.content.Context,
-): RawLoadState = withContext(Dispatchers.IO) {
-    try {
-        val uri = Uri.parse(journalPath)
-        val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: ""
-        if (text.isBlank()) RawLoadState.Empty else RawLoadState.Loaded(text)
-    } catch (e: Exception) {
-        AppLogger.error("Journal", "Raw read failed: ${e.message}")
-        RawLoadState.Error
     }
 }

@@ -44,6 +44,7 @@ import com.composables.icons.lucide.Trash2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.notifledger.app.R
+import org.notifledger.app.log.AppLogger
 import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +65,8 @@ fun NotificationSourcesScreen(
                 try {
                     val info = pm.getApplicationInfo(pkg, 0)
                     pkg to info.loadLabel(pm).toString()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    AppLogger.warn("Sources", "Label lookup failed for $pkg: ${e.message}")
                     pkg to pkg
                 }
             }

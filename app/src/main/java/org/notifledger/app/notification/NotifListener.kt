@@ -1,17 +1,16 @@
 package org.notifledger.app.notification
 
-import android.net.Uri
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import org.notifledger.app.NotifLedgerApp
-import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.log.AppLogger
-import org.notifledger.app.model.Source
-import org.notifledger.app.model.Transaction
 
 /**
  * Listens for notifications from user-selected banking/payment apps.
@@ -20,11 +19,34 @@ import org.notifledger.app.model.Transaction
  */
 class NotifListener : NotificationListenerService() {
 
-    override fun onNotificationPosted(sbn: StatusBarNotification) {
-        handleNotification(sbn)
+    private val channel = Channel<StatusBarNotification>(Channel.UNLIMITED)
+    private lateinit var scope: CoroutineScope
+
+    override fun onCreate() {
+        super.onCreate()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        // The single consumer both keeps the main looper free and serializes
+        // dedup reads and persists.
+        scope.launch {
+            for (sbn in channel) {
+                try {
+                    handleNotification(sbn)
+                } catch (e: Exception) {
+                    // One malformed notification must not kill the only consumer — a dead
+                    // consumer means silent capture loss and unbounded queue growth.
+                    AppLogger.error("Notif", "Handling failed for ${sbn.packageName}: ${e.message}")
+                }
+            }
+        }
     }
 
-    private fun handleNotification(sbn: StatusBarNotification) {
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        if (channel.trySend(sbn).isFailure) {
+            AppLogger.error("Notif", "Listener channel closed — dropped ${sbn.packageName}")
+        }
+    }
+
+    private suspend fun handleNotification(sbn: StatusBarNotification) {
         val app = application as? NotifLedgerApp ?: return
 
         val allowedPackages = app.getAllowedNotificationPackages()
@@ -38,8 +60,8 @@ class NotifListener : NotificationListenerService() {
             return
         }
 
-        // Listener callbacks are serialized on the main looper, so this read and
-        // the persist below cannot interleave with each other.
+        // The single-consumer worker serializes this read and the persist below,
+        // so they cannot interleave with each other.
         val updatedRaw = NotificationDedup.add(
             app.getProcessedNotificationIds(),
             NotificationDedup.notificationId(sbn.postTime, sbn.key),
@@ -54,10 +76,8 @@ class NotifListener : NotificationListenerService() {
         val rules = app.getCategorizationRules()
 
         val tx = NotificationHandler.processNotification(
-            packageName = sbn.packageName,
             title = title,
             text = text,
-            allowedPackages = allowedPackages,
             defaultAccount = defaultAccount,
             currency = defaultCurrency,
             rules = rules,
@@ -67,37 +87,18 @@ class NotifListener : NotificationListenerService() {
         // per design §4.1, so we never log the body.
         AppLogger.info("Notif", "Notification from ${sbn.packageName}")
 
-        if (!writeToJournal(journalUri, tx.copy(source = Source.Notification))) return
+        if (!app.journalRepository.appendRaw(journalUri.toString(), tx)) {
+            AppLogger.error("Notif", "Failed to write to journal")
+            return
+        }
         Log.d(TAG, "Transaction written to journal")
         AppLogger.info("Notif", "Transaction written")
 
         try {
-            runBlocking { app.settings.setProcessedNotificationIds(updatedRaw) }
+            app.settings.setProcessedNotificationIds(updatedRaw)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to persist dedup state", e)
             AppLogger.error("Notif", "Failed to persist dedup state: ${e.message}")
-        }
-    }
-
-    // Uses the shared app-level mutex so UI writes and notification writes don't interleave.
-    private fun writeToJournal(uri: Uri, tx: Transaction): Boolean {
-        val app = application as? NotifLedgerApp ?: return false
-        return runBlocking(Dispatchers.IO) {
-            app.journalWriteMutex.withLock {
-                try {
-                    val existing = contentResolver.openInputStream(uri)?.use {
-                        it.bufferedReader().use { r -> r.readText() }
-                    } ?: ""
-                    val updated = JournalWriter.appendToContentRaw(existing, tx)
-                    contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
-                        it.write(updated)
-                    } != null
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to write to journal", e)
-                    AppLogger.error("Notif", "Failed to write to journal: ${e.message}")
-                    false
-                }
-            }
         }
     }
 
@@ -120,13 +121,23 @@ class NotifListener : NotificationListenerService() {
         }
         if (active == null || active.isEmpty()) return
         AppLogger.info("Notif", "Scanning ${active.size} active notifications")
-        active.sortedBy { it.postTime }.forEach { handleNotification(it) }
+        active.sortedBy { it.postTime }.forEach { sbn ->
+            if (channel.trySend(sbn).isFailure) {
+                AppLogger.error("Notif", "Listener channel closed — dropped ${sbn.packageName}")
+            }
+        }
     }
 
     override fun onListenerDisconnected() {
         Log.d(TAG, "Notification listener disconnected")
         AppLogger.warn("Notif", "Notification listener disconnected")
         NotificationHelper.hideListeningNotification(this)
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        channel.close()
+        super.onDestroy()
     }
 
     companion object {

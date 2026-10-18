@@ -132,6 +132,7 @@
     <string name="payee_pattern_label">Payee pattern (regex)</string>
     <string name="payee_pattern_placeholder">e.g. REMA|KIWI|COOP</string>
     <string name="rules_delete_confirm">Delete this rule?</string>
+    <string name="invalid_regex_pattern">Invalid regex pattern</string>
 
     <!-- Raw journal -->
     <string name="no_journal_or_empty">No journal file selected or file is empty.</string>

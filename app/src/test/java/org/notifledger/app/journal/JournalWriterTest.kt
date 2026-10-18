@@ -159,6 +159,56 @@ class JournalWriterTest {
     }
 
     @Test
+    fun `readAll parses amount with currency`() {
+        val content = """
+            |2026-07-12 Rema 1000
+            |    expenses:groceries              184.50 NOK
+            |    assets:bank:checking           -184.50 NOK
+        """.trimMargin()
+        val entries = JournalWriter.readAll(content)
+        assertEquals("184.50", entries[0].postings[0].amount)
+        assertEquals("NOK", entries[0].postings[0].currency)
+        assertEquals("-184.50", entries[0].postings[1].amount)
+    }
+
+    @Test
+    fun `readAll leaves unsigned amount with trailing currency word blank`() {
+        val content = """
+            |2026-07-12 Rema 1000
+            |    expenses:groceries              *184.50 NOK
+            |    assets:bank:checking           -184.50 NOK
+        """.trimMargin()
+        val entries = JournalWriter.readAll(content)
+        assertEquals("", entries[0].postings[0].amount)
+        assertEquals("", entries[0].postings[0].currency)
+        assertEquals("-184.50", entries[0].postings[1].amount)
+    }
+
+    @Test
+    fun `readAll leaves parenthesized amount blank`() {
+        val content = """
+            |2026-07-12 Rema 1000
+            |    expenses:groceries              (184.50 NOK)
+            |    assets:bank:checking           -184.50 NOK
+        """.trimMargin()
+        val entries = JournalWriter.readAll(content)
+        assertEquals("", entries[0].postings[0].amount)
+        assertEquals("", entries[0].postings[0].currency)
+    }
+
+    @Test
+    fun `readAll parses comma decimal posting amount`() {
+        val content = """
+            |2026-07-12 Rema 1000
+            |    expenses:food                   12,50
+            |    assets:bank:checking           -12.50 NOK
+        """.trimMargin()
+        val entries = JournalWriter.readAll(content)
+        assertEquals("12.50", entries[0].postings[0].amount)
+        assertEquals("", entries[0].postings[0].currency)
+    }
+
+    @Test
     fun `readAll parses entry with missing amount`() {
         val content = """
             |2026-07-12 Rema 1000
@@ -402,7 +452,7 @@ class JournalWriterTest {
     @Test
     fun `deleteFromContent single entry without trailing newline`() {
         val content = "2026-07-12 Rema 1000\n    expenses:groceries  184.50 NOK\n    assets:bank:checking  -184.50 NOK"
-val result = JournalWriter.deleteFromContent(content, 0).content
+        val result = JournalWriter.deleteFromContent(content, 0).content
         assertEquals("", result)
     }
 
