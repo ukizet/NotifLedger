@@ -24,6 +24,7 @@ import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.log.AppLogger
 import org.notifledger.app.log.LogEntry
 import org.notifledger.app.model.CategorizationRule
+import org.notifledger.app.model.FilterMode
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
 import org.notifledger.app.model.TransactionFilter
@@ -77,18 +78,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _filterLimit = MutableStateFlow(5)
     val filterLimit: StateFlow<Int> = _filterLimit.asStateFlow()
 
+    private val _page = MutableStateFlow(0)
+
     val hasEntries: StateFlow<Boolean> = _allEntries.map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** Filtered + sorted + limited entries ready for the UI. */
-    val entries: StateFlow<List<JournalEntry>> = combine(
+    /** Filtered + sorted + paginated entries ready for the UI. */
+    val entryPage: StateFlow<EntryPage> = combine(
         _allEntries,
         _sortOrder,
         _pageLimit,
         _filters,
-    ) { all, sort, limit, filters ->
-        EntryList.visible(all, filters, sort, limit)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        _page,
+    ) { all, sort, limit, filters, page ->
+        EntryList.visible(all, filters, sort, limit, page)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryPage(emptyList(), 0, 1))
 
     private val _categorizationRules = MutableStateFlow<List<CategorizationRule>>(emptyList())
     val categorizationRules: StateFlow<List<CategorizationRule>> = _categorizationRules.asStateFlow()
@@ -196,11 +200,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setSortOrder(order: SortOrder) {
+        _page.value = 0
         viewModelScope.launch { settings.setSortOrder(SortOrder.toValue(order)) }
     }
 
     fun setPageLimit(limit: Int) {
+        _page.value = 0
         viewModelScope.launch { settings.setPageLimit(limit) }
+    }
+
+    fun nextPage() {
+        if (_page.value < entryPage.value.pageCount - 1) _page.value += 1
+    }
+
+    fun previousPage() {
+        if (_page.value > 0) _page.value -= 1
     }
 
     fun addTransaction(tx: Transaction) {
@@ -368,6 +382,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persistFilters(filters: List<TransactionFilter>) {
         _filters.value = filters
+        _page.value = 0
         val revision = ++filterSaveRevision
         viewModelScope.launch(Dispatchers.IO) {
             filterSaveMutex.withLock {
@@ -419,12 +434,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         persistFilters(current.filterIndexed { i, _ -> i != index })
     }
 
-    fun toggleFilterActive(index: Int) {
+    fun cycleFilterMode(index: Int) {
         val current = _filters.value
         if (index !in current.indices) return
         persistFilters(current.mapIndexed { i, filter ->
-            if (i == index) filter.copy(isActive = !filter.isActive) else filter
+            if (i == index) filter.copy(mode = nextMode(filter.mode)) else filter
         })
+    }
+
+    private fun nextMode(mode: FilterMode): FilterMode = when (mode) {
+        FilterMode.INCLUDE -> FilterMode.EXCLUDE
+        FilterMode.EXCLUDE -> FilterMode.OFF
+        FilterMode.OFF -> FilterMode.INCLUDE
     }
 
     fun setFilterLimit(limit: Int) {

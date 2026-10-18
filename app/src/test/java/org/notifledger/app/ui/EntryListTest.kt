@@ -3,6 +3,7 @@ package org.notifledger.app.ui
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.notifledger.app.journal.JournalEntry
+import org.notifledger.app.model.FilterMode
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.TransactionFilter
@@ -12,14 +13,14 @@ class EntryListTest {
     @Test
     fun `newest first sorts by date descending`() {
         val entries = listOf(entry("2026-01-01"), entry("2026-03-01"), entry("2026-02-01"))
-        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 20)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 20).entries
         assertEquals(listOf("2026-03-01", "2026-02-01", "2026-01-01"), result.map { it.date })
     }
 
     @Test
     fun `oldest first sorts by date ascending`() {
         val entries = listOf(entry("2026-01-01"), entry("2026-03-01"), entry("2026-02-01"))
-        val result = EntryList.visible(entries, emptyList(), SortOrder.OldestFirst, 20)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.OldestFirst, 20).entries
         assertEquals(listOf("2026-01-01", "2026-02-01", "2026-03-01"), result.map { it.date })
     }
 
@@ -31,7 +32,7 @@ class EntryListTest {
             entry("2026-01-03", amount = ""),
             entry("2026-01-04", amount = "99.99"),
         )
-        val result = EntryList.visible(entries, emptyList(), SortOrder.HighestAmount, 20)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.HighestAmount, 20).entries
         assertEquals(listOf("500.00", "99.99", "12.50", ""), result.map { it.postings.first().amount })
     }
 
@@ -43,14 +44,14 @@ class EntryListTest {
             entry("2026-01-03", amount = ""),
             entry("2026-01-04", amount = "99.99"),
         )
-        val result = EntryList.visible(entries, emptyList(), SortOrder.LowestAmount, 20)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.LowestAmount, 20).entries
         assertEquals(listOf("", "12.50", "99.99", "500.00"), result.map { it.postings.first().amount })
     }
 
     @Test
     fun `limit zero still returns one entry`() {
         val entries = listOf(entry("2026-01-01"), entry("2026-02-01"), entry("2026-03-01"))
-        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 0)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 0).entries
         assertEquals(1, result.size)
         assertEquals("2026-03-01", result[0].date)
     }
@@ -58,7 +59,7 @@ class EntryListTest {
     @Test
     fun `negative limit still returns one entry`() {
         val entries = listOf(entry("2026-01-01"), entry("2026-02-01"), entry("2026-03-01"))
-        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, -5)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, -5).entries
         assertEquals(1, result.size)
         assertEquals("2026-03-01", result[0].date)
     }
@@ -66,7 +67,7 @@ class EntryListTest {
     @Test
     fun `limit larger than list returns all entries`() {
         val entries = listOf(entry("2026-01-01"), entry("2026-02-01"), entry("2026-03-01"))
-        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 100)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 100).entries
         assertEquals(entries.reversed(), result)
     }
 
@@ -76,7 +77,7 @@ class EntryListTest {
             entryWithAccounts("2026-01-01", "expenses:groceries", "assets:bank:checking"),
             entryWithAccounts("2026-01-02", "expenses:travel", "assets:bank:checking"),
         )
-        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 20)
+        val result = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 20).entries
         assertEquals(entries.reversed(), result)
     }
 
@@ -93,20 +94,20 @@ class EntryListTest {
             listOf(filter),
             SortOrder.NewestFirst,
             20,
-        )
+        ).entries
 
         assertEquals(listOf(groceriesSecond, groceriesFirst), result)
     }
 
     @Test
-    fun `inactive filter does not filter`() {
+    fun `off filter does not filter`() {
         val entries = listOf(
             entryWithAccounts("2026-01-01", "expenses:groceries", "assets:bank:checking"),
             entryWithAccounts("2026-01-02", "expenses:travel", "assets:bank:checking"),
         )
-        val filter = TransactionFilter(label = "Groceries", account = "expenses:groceries", isActive = false)
+        val filter = TransactionFilter(label = "Groceries", account = "expenses:groceries", mode = FilterMode.OFF)
 
-        val result = EntryList.visible(entries, listOf(filter), SortOrder.NewestFirst, 20)
+        val result = EntryList.visible(entries, listOf(filter), SortOrder.NewestFirst, 20).entries
 
         assertEquals(entries.reversed(), result)
     }
@@ -121,9 +122,44 @@ class EntryListTest {
             TransactionFilter(label = "Travel", account = "expenses:travel"),
         )
 
-        val result = EntryList.visible(listOf(groceries, travel, other), filters, SortOrder.NewestFirst, 20)
+        val result = EntryList.visible(listOf(groceries, travel, other), filters, SortOrder.NewestFirst, 20).entries
 
         assertEquals(listOf(travel, groceries), result)
+    }
+
+    @Test
+    fun `exclude filter drops matching entries`() {
+        val groceries = entryWithAccounts("2026-01-01", "expenses:groceries", "assets:bank:checking")
+        val travel = entryWithAccounts("2026-01-02", "expenses:travel", "assets:bank:checking")
+        val filter = TransactionFilter(
+            label = "Groceries",
+            account = "expenses:groceries",
+            mode = FilterMode.EXCLUDE,
+        )
+
+        val result = EntryList.visible(listOf(groceries, travel), listOf(filter), SortOrder.NewestFirst, 20).entries
+
+        assertEquals(listOf(travel), result)
+    }
+
+    @Test
+    fun `include union combined with exclude subtracts`() {
+        val groceries = entryWithAccounts("2026-01-01", "expenses:groceries", "assets:bank:checking")
+        val travel = entryWithAccounts("2026-01-02", "expenses:travel", "assets:bank:checking")
+        val other = entryWithAccounts("2026-01-03", "expenses:other", "assets:bank:checking")
+        val filters = listOf(
+            TransactionFilter(label = "Groceries", account = "expenses:groceries", mode = FilterMode.INCLUDE),
+            TransactionFilter(label = "Travel", account = "expenses:travel", mode = FilterMode.INCLUDE),
+            TransactionFilter(
+                label = "No groceries",
+                account = "expenses:groceries",
+                mode = FilterMode.EXCLUDE,
+            ),
+        )
+
+        val result = EntryList.visible(listOf(groceries, travel, other), filters, SortOrder.NewestFirst, 20).entries
+
+        assertEquals(listOf(travel), result)
     }
 
     @Test
@@ -142,7 +178,7 @@ class EntryListTest {
             filters,
             SortOrder.OldestFirst,
             2,
-        )
+        ).entries
 
         assertEquals(listOf(janGroceries, febTravel), result)
     }
@@ -153,9 +189,44 @@ class EntryListTest {
         val second = entry("2026-01-01", payee = "Second")
         val third = entry("2026-01-01", payee = "Third")
 
-        val result = EntryList.visible(listOf(first, second, third), emptyList(), SortOrder.NewestFirst, 20)
+        val result = EntryList.visible(listOf(first, second, third), emptyList(), SortOrder.NewestFirst, 20).entries
 
         assertEquals(listOf(first, second, third), result)
+    }
+
+    @Test
+    fun `second page returns the correct slice`() {
+        val entries = (1..5).map { entry("2026-01-0$it") }
+        val page = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 2, page = 1)
+
+        assertEquals(listOf("2026-01-03", "2026-01-02"), page.entries.map { it.date })
+        assertEquals(1, page.page)
+        assertEquals(3, page.pageCount)
+    }
+
+    @Test
+    fun `page beyond the end clamps to the last page`() {
+        val entries = (1..5).map { entry("2026-01-0$it") }
+        val page = EntryList.visible(entries, emptyList(), SortOrder.NewestFirst, 2, page = 99)
+
+        assertEquals(listOf("2026-01-01"), page.entries.map { it.date })
+        assertEquals(2, page.page)
+        assertEquals(3, page.pageCount)
+    }
+
+    @Test
+    fun `page count is computed after filters are applied`() {
+        val entries = listOf(
+            entryWithAccounts("2026-01-01", "expenses:groceries"),
+            entryWithAccounts("2026-01-02", "expenses:groceries"),
+            entryWithAccounts("2026-01-03", "expenses:travel"),
+        )
+        val filter = TransactionFilter(label = "Groceries", account = "expenses:groceries")
+
+        val page = EntryList.visible(entries, listOf(filter), SortOrder.NewestFirst, 1)
+
+        assertEquals(2, page.pageCount)
+        assertEquals(1, page.entries.size)
     }
 
     private fun entry(

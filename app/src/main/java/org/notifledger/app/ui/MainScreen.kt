@@ -61,6 +61,8 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.Bot
+import com.composables.icons.lucide.ChevronLeft
+import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.List
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
@@ -92,7 +94,8 @@ fun MainScreen(
     onNavigateToLogs: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
-    val entries by viewModel.entries.collectAsState()
+    val entryPage by viewModel.entryPage.collectAsState()
+    val entries = entryPage.entries
     val filters by viewModel.filters.collectAsState()
     val filterLimit by viewModel.filterLimit.collectAsState()
     val hasEntries by viewModel.hasEntries.collectAsState()
@@ -308,7 +311,7 @@ fun MainScreen(
                     onRename = viewModel::renameFilter,
                     onChangeCategory = viewModel::changeFilterCategory,
                     onDelete = viewModel::deleteFilter,
-                    onToggle = viewModel::toggleFilterActive,
+                    onToggle = viewModel::cycleFilterMode,
                 )
 
                 if (selectedOffsets.isNotEmpty()) {
@@ -338,7 +341,7 @@ fun MainScreen(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxWidth().weight(1f),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         contentPadding = PaddingValues(bottom = 88.dp),
                     ) {
@@ -361,6 +364,34 @@ fun MainScreen(
                                 selectionMode = selectedOffsets.isNotEmpty(),
                                 onDelete = { viewModel.deleteTransaction(entry.lineOffset) },
                             )
+                        }
+                    }
+
+                    if (entryPage.pageCount > 1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = viewModel::previousPage,
+                                enabled = entryPage.page > 0,
+                            ) {
+                                Icon(
+                                    Lucide.ChevronLeft,
+                                    contentDescription = stringResource(R.string.page_previous),
+                                )
+                            }
+                            Text(stringResource(R.string.page_of, entryPage.page + 1, entryPage.pageCount))
+                            IconButton(
+                                onClick = viewModel::nextPage,
+                                enabled = entryPage.page < entryPage.pageCount - 1,
+                            ) {
+                                Icon(
+                                    Lucide.ChevronRight,
+                                    contentDescription = stringResource(R.string.page_next),
+                                )
+                            }
                         }
                     }
                 }

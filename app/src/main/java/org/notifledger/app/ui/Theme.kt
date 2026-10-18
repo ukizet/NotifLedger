@@ -7,7 +7,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-/** The one place to change the filter add button's green. */
+/** The green for the filter include-chip and the empty add button. */
 val FilterAddGreen = Color(0xFF2E7D32)
 
 /**

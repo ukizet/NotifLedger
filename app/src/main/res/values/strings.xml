@@ -57,6 +57,9 @@
     <string name="sort_lowest_amount">Lowest amount first</string>
     <string name="page_per_page">%1$d per page</string>
     <string name="page_size">Page size</string>
+    <string name="page_of">Page %1$d of %2$d</string>
+    <string name="page_previous">Previous page</string>
+    <string name="page_next">Next page</string>
 
     <!-- Transaction filters -->
     <string name="filter_add">Add filter</string>
@@ -71,6 +74,9 @@
     <string name="filter_account_invalid">Pick an account from the list</string>
     <string name="filter_account_duplicate">This account is already in the row</string>
     <string name="filter_row_limit">Max filter chips</string>
+    <string name="filter_state_include">Included</string>
+    <string name="filter_state_exclude">Excluded</string>
+    <string name="filter_state_off">Off</string>
     <string name="no_matching_transactions">No transactions match the active filters</string>
 
     <!-- Bulk edit -->

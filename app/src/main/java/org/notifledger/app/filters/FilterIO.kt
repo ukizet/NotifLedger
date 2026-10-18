@@ -1,6 +1,7 @@
 package org.notifledger.app.filters
 
 import org.notifledger.app.log.AppLogger
+import org.notifledger.app.model.FilterMode
 import org.notifledger.app.model.TransactionFilter
 import org.yaml.snakeyaml.Yaml
 import java.io.File
@@ -26,12 +27,22 @@ object FilterIO {
                 TransactionFilter(
                     label = label,
                     account = account,
-                    isActive = entry["active"] as? Boolean ?: true,
+                    mode = parseMode(entry),
                 )
             }
         } catch (e: Exception) {
             AppLogger.error("Filters", "Failed to load filters: ${e.message}")
             emptyList()
+        }
+    }
+
+    private fun parseMode(entry: Map<String, Any>): FilterMode {
+        val value = entry["mode"] as? String
+        val parsed = value?.let { v -> FilterMode.entries.firstOrNull { it.name.equals(v, ignoreCase = true) } }
+        if (parsed != null) return parsed
+        return when (entry["active"] as? Boolean) {
+            false -> FilterMode.OFF
+            else -> FilterMode.INCLUDE
         }
     }
 
@@ -41,7 +52,7 @@ object FilterIO {
             val m = mutableMapOf<String, Any>()
             m["label"] = filter.label
             m["account"] = filter.account
-            m["active"] = filter.isActive
+            m["mode"] = filter.mode.name.lowercase()
             m
         }
         File(dir, "filters.yaml").writeText(yaml.dumpAll(listOf(data).iterator()))

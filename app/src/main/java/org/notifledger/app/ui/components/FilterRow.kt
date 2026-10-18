@@ -37,12 +37,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Minus
 import com.composables.icons.lucide.Plus
 import org.notifledger.app.R
+import org.notifledger.app.model.FilterMode
 import org.notifledger.app.model.TransactionFilter
 import org.notifledger.app.ui.FilterAddGreen
 
@@ -101,7 +105,7 @@ fun FilterRow(
         filters.forEachIndexed { index, filter ->
             FilterChipItem(
                 label = filter.label,
-                isActive = filter.isActive,
+                mode = filter.mode,
                 onToggle = { onToggle(index) },
                 onRename = { renameIndex = index },
                 onChangeCategory = { changeIndex = index },
@@ -157,7 +161,7 @@ fun FilterRow(
 @Composable
 private fun FilterChipItem(
     label: String,
-    isActive: Boolean,
+    mode: FilterMode,
     onToggle: () -> Unit,
     onRename: () -> Unit,
     onChangeCategory: () -> Unit,
@@ -166,38 +170,64 @@ private fun FilterChipItem(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
+    val containerColor = when (mode) {
+        FilterMode.INCLUDE -> FilterAddGreen
+        FilterMode.EXCLUDE -> MaterialTheme.colorScheme.errorContainer
+        FilterMode.OFF -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = when (mode) {
+        FilterMode.INCLUDE -> Color.White
+        FilterMode.EXCLUDE -> MaterialTheme.colorScheme.onErrorContainer
+        FilterMode.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val leadingIcon = when (mode) {
+        FilterMode.INCLUDE -> Lucide.Check
+        FilterMode.EXCLUDE -> Lucide.Minus
+        FilterMode.OFF -> null
+    }
+    val stateLabel = when (mode) {
+        FilterMode.INCLUDE -> stringResource(R.string.filter_state_include)
+        FilterMode.EXCLUDE -> stringResource(R.string.filter_state_exclude)
+        FilterMode.OFF -> stringResource(R.string.filter_state_off)
+    }
+
     Box(modifier = modifier) {
         Surface(
             shape = RoundedCornerShape(percent = 50),
-            color = if (isActive) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-            contentColor = if (isActive) {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            color = containerColor,
+            contentColor = contentColor,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 40.dp)
+                .semantics { stateDescription = stateLabel }
                 .combinedClickable(
                     onClick = onToggle,
                     onLongClick = { menuExpanded = true },
                 ),
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight(Alignment.CenterVertically)
                     .padding(horizontal = 12.dp),
-            )
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (leadingIcon != null) {
+                    Icon(
+                        leadingIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         DropdownMenu(
             expanded = menuExpanded,
