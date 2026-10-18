@@ -33,7 +33,7 @@ flowchart TB
     bank --> framework --> listener
     listener --> handler --> parser
     listener --> dedup
-    handler --> writer
+    listener --> writer
     listener -->|read + append via ContentResolver| journal
     listener -->|runBlocking reads| application
     application --> datastore
@@ -83,18 +83,20 @@ sequenceDiagram
     end
 
     L->>L: extract android.title / android.text
-    L->>P: parse(title, text, category account, default account, currency)
+    L->>H: processNotification(title, text, rules, ...)
+    H->>P: parse(title, text, category account, default account, currency)
     alt number found
-        P-->>L: Transaction(amount, payee = title)
+        P-->>H: Transaction(amount, payee = title)
     else no number
-        P-->>L: null
-        L->>H: createBestEffortTransaction(...)
+        P-->>H: null
+        H->>H: createBestEffortTransaction(...)
         Note over H: empty amounts, still posted — never dropped
     end
+    H-->>L: Transaction
 
     L->>SAF: read existing content (ContentResolver)
-    L->>J: appendToContent(existing, tx)
-    J-->>L: updated content + parsed entries
+    L->>J: appendToContentRaw(existing, tx)
+    J-->>L: updated content
     L->>SAF: write content ("wt")
     L->>DS: persist updated dedup ids
 ```
@@ -251,7 +253,7 @@ classDiagram
         LowestAmount
     }
 
-    Transaction "1" --> "2..*" Posting
+    Transaction "1" --> "*" Posting
     JournalEntry "1" --> "*" Posting
     TransactionFilter --> FilterMode
     Transaction --> Source
