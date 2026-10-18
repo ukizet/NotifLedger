@@ -35,7 +35,7 @@ object Statistics {
         today: LocalDate = LocalDate.now(),
     ): String? {
         val currencies = matchingEntries(entries, accounts, days, today)
-            .flatMap { expenseLegs(it, currency = null) }
+            .flatMap { expenseLegs(it, accounts, currency = null) }
             .map { it.currency }
             .filter { it.isNotBlank() }
         return currencies.groupingBy { it }.eachCount().entries
@@ -53,7 +53,7 @@ object Statistics {
     ): List<CategoryTotal> {
         val totals = mutableMapOf<String, BigDecimal>()
         for (entry in matchingEntries(entries, accounts, days, today)) {
-            for (posting in expenseLegs(entry, currency)) {
+            for (posting in expenseLegs(entry, accounts, currency)) {
                 val category = category(posting.account)
                 totals[category] = (totals[category] ?: BigDecimal.ZERO) + posting.amount.toBigDecimal()
             }
@@ -75,7 +75,7 @@ object Statistics {
         for (entry in matchingEntries(entries, accounts, days, today)) {
             val date = parsedDate(entry.date) ?: continue
             val label = periodLabel(days, date)
-            val total = expenseLegs(entry, currency).sumOf { it.amount.toBigDecimal() }
+            val total = expenseLegs(entry, accounts, currency).sumOf { it.amount.toBigDecimal() }
             buckets[label] = (buckets[label] ?: BigDecimal.ZERO) + total
         }
         return buckets.map { PeriodTotal(it.key, it.value) }
@@ -102,12 +102,15 @@ object Statistics {
     private fun matchesAccounts(entry: JournalEntry, accounts: Set<String>): Boolean =
         accounts.isEmpty() || entry.postings.any { it.account in accounts }
 
-    private fun expenseLegs(entry: JournalEntry, currency: String?): List<Posting> =
-        entry.postings.filter {
+    private fun expenseLegs(entry: JournalEntry, accounts: Set<String>, currency: String?): List<Posting> {
+        val fundedBySelection = entry.postings.any { it.account in accounts && !isExpense(it.account) }
+        return entry.postings.filter {
             isExpense(it.account) &&
+                (accounts.isEmpty() || it.account in accounts || fundedBySelection) &&
                 (currency == null || it.currency == currency) &&
                 it.amount.toBigDecimalOrNull() != null
         }
+    }
 
     private fun isExpense(account: String): Boolean =
         account == "expenses" || account.startsWith("expenses:")

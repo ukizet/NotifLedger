@@ -147,6 +147,22 @@ class StatisticsTest {
     }
 
     @Test
+    fun `expense account selection ignores other expense legs in the same entry`() {
+        val entries = listOf(
+            entry(
+                "2026-10-01",
+                posting("expenses:health", "61.40"),
+                posting("expenses:groceries", "24.90"),
+                posting("assets:banks:DNB", "-86.30"),
+            ),
+        )
+
+        val result = Statistics.spendingByCategory(entries, setOf("expenses:groceries"), days = 30, today = today, currency = "NOK")
+
+        assertEquals(listOf(CategoryTotal("groceries", BigDecimal("24.90"))), result)
+    }
+
+    @Test
     fun `spendingByCategory counts only the chosen currency`() {
         val entries = listOf(
             entry("2026-10-01", posting("expenses:groceries", "10.00", currency = "NOK")),
