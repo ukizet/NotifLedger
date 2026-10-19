@@ -19,35 +19,24 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.notifledger.app.NotifLedgerApp
 import org.notifledger.app.filters.FilterIO
-import org.notifledger.app.journal.JournalEntry
-import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.log.AppLogger
-import org.notifledger.app.log.LogEntry
-import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.model.FilterMode
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
 import org.notifledger.app.model.TransactionFilter
 import org.notifledger.app.parser.ParserEngine
-import org.notifledger.app.parser.RuleIO
 import org.notifledger.app.settings.SettingsManager
+import java.io.File
 
+/** State for the main transaction list: filters, sorting, paging, edits, simulate. */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = getApplication<NotifLedgerApp>()
 
-    val settings = app.settings
-
-    /** Captured so we can unsubscribe in [onCleared] (AppLogger outlives the ViewModel). */
-    private var logSubscription: ((List<LogEntry>) -> Unit)? = null
-
-    private val _allEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
+    private val settings = app.settings
 
     private val _uiMessage = MutableStateFlow<String?>(null)
     val uiMessage: StateFlow<String?> = _uiMessage.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     fun consumeMessage() {
         _uiMessage.value = null
@@ -57,18 +46,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiMessage.value = msg
     }
 
-    val existingPayees: StateFlow<List<String>> = _allEntries.map { entries ->
-        entries.map { it.payee }.filter { it.isNotBlank() }.distinct().sorted()
+    val existingPayees: StateFlow<List<String>> = app.journalSession.entries.map { entries ->
+        entries.payeeSuggestions()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val existingAccounts: StateFlow<List<String>> = _allEntries.map { entries ->
-        entries.flatMap { it.postings.map { p -> p.account } }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sorted()
+    val existingAccounts: StateFlow<List<String>> = app.journalSession.entries.map { entries ->
+        entries.accountSuggestions()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val journalEntries: StateFlow<List<JournalEntry>> = _allEntries.asStateFlow()
 
     private val _sortOrder = MutableStateFlow(SortOrder.NewestFirst)
     val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
@@ -84,12 +68,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _page = MutableStateFlow(0)
 
-    val hasEntries: StateFlow<Boolean> = _allEntries.map { it.isNotEmpty() }
+    val hasEntries: StateFlow<Boolean> = app.journalSession.entries.map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val isLoading: StateFlow<Boolean> = app.journalSession.isLoading
 
     /** Filtered + sorted + paginated entries ready for the UI. */
     val entryPage: StateFlow<EntryPage> = combine(
-        _allEntries,
+        app.journalSession.entries,
         _sortOrder,
         _pageLimit,
         _filters,
@@ -98,34 +84,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         EntryList.visible(all, filters, sort, limit, page)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryPage(emptyList(), 0, 1))
 
-    private val _categorizationRules = MutableStateFlow<List<CategorizationRule>>(emptyList())
-    val categorizationRules: StateFlow<List<CategorizationRule>> = _categorizationRules.asStateFlow()
-
-    val defaultAccount = settings.defaultAccount.stateIn(
+    val defaultAccount = app.settings.defaultAccount.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsManager.DEFAULT_ACCOUNT
     )
 
-    val journalPath = settings.journalPath.stateIn(
+    val journalPath = app.settings.journalPath.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), ""
     )
 
-    val defaultCurrency = settings.defaultCurrency.stateIn(
+    val defaultCurrency = app.settings.defaultCurrency.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsManager.DEFAULT_CURRENCY
     )
 
-    val notificationSources = settings.notificationSources.stateIn(
+    val notificationSources = app.settings.notificationSources.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList()
     )
 
-    val logEntries: StateFlow<List<LogEntry>>
-
     init {
-        val logState = MutableStateFlow(AppLogger.entries())
-        logEntries = logState.asStateFlow()
-        val subscription: (List<LogEntry>) -> Unit = { entries -> logState.value = entries }
-        logSubscription = subscription
-        AppLogger.subscribe(subscription)
-
         viewModelScope.launch {
             _sortOrder.value = SortOrder.fromValue(settings.sortOrder.first())
             settings.sortOrder.collect { _sortOrder.value = SortOrder.fromValue(it) }
@@ -135,22 +110,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settings.pageLimit.collect { _pageLimit.value = it }
         }
         viewModelScope.launch {
-            settings.journalPath.distinctUntilChanged().collect { path ->
-                if (path.isNotBlank()) {
-                    val content = readJournalContent(path)
-                    if (content != null) {
-                        _allEntries.value = withContext(Dispatchers.Default) { JournalWriter.readAll(content) }
-                    }
-                } else {
-                    _allEntries.value = emptyList()
-                }
-                _isLoading.value = false
-            }
-        }
-        viewModelScope.launch {
-            val rulesDir = getRulesDir()
-            _categorizationRules.value = RuleIO.loadCategorizationRules(rulesDir)
-            AppLogger.info("Rules", "Loaded ${_categorizationRules.value.size} categorization rules")
+            settings.journalPath.distinctUntilChanged().collect { reload() }
         }
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
@@ -170,16 +130,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLogger.info("App", "MainViewModel initialized")
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        logSubscription?.let { AppLogger.unsubscribe(it) }
-        logSubscription = null
+    private suspend fun reload() {
+        if (!app.journalSession.refresh()) emitMessage("Couldn't read journal — see Logs")
     }
 
-    private suspend fun readJournalContent(uriString: String): String? {
-        val content = app.journalRepository.read(uriString)
-        if (content == null) emitMessage("Couldn't read journal — see Logs")
-        return content
+    fun reloadEntries() {
+        viewModelScope.launch { reload() }
+    }
+
+    fun setJournalPath(path: String) {
+        viewModelScope.launch { settings.setJournalPath(path) }
     }
 
     fun setSortOrder(order: SortOrder) {
@@ -202,27 +162,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (page.page > 0) _page.value = page.page - 1
     }
 
-    fun addTransaction(tx: Transaction) {
-        viewModelScope.launch {
-            val path = settings.journalPath.first()
-            if (path.isBlank()) return@launch
-            val result = app.journalRepository.append(path, tx)
-            if (result != null) {
-                emitMessage("Saved")
-                _allEntries.value = result.entries
-            } else {
-                emitMessage("Save failed — see Logs")
-            }
-        }
-    }
-
     fun editTransaction(offset: Int, tx: Transaction) {
         viewModelScope.launch {
             val path = settings.journalPath.first()
             if (path.isBlank()) return@launch
             val result = app.journalRepository.replace(path, offset, tx)
-            emitSaveResult(result != null)
-            if (result != null) _allEntries.value = result.entries
+            if (result != null) {
+                emitMessage("Saved")
+                app.journalSession.apply(result.entries)
+            } else {
+                emitMessage("Save failed — see Logs")
+            }
         }
     }
 
@@ -233,7 +183,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = app.journalRepository.delete(path, offset)
             if (result != null) {
                 emitMessage("Deleted")
-                _allEntries.value = result.entries
+                app.journalSession.apply(result.entries)
             } else {
                 emitMessage("Delete failed — see Logs")
             }
@@ -244,7 +194,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val path = settings.journalPath.first()
             if (path.isBlank()) return@launch
-            val byOffset = _allEntries.value.associateBy { it.lineOffset }
+            val byOffset = app.journalSession.entries.value.associateBy { it.lineOffset }
             val updates = offsets.mapNotNull { offset ->
                 val entry = byOffset[offset] ?: return@mapNotNull null
                 val postings = entry.postings.mapIndexed { index, posting ->
@@ -262,28 +212,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = app.journalRepository.replaceMany(path, updates)
             if (result != null) {
                 emitMessage("Updated ${updates.size}")
-                _allEntries.value = result.entries
+                app.journalSession.apply(result.entries)
             } else {
                 emitMessage("Update failed — see Logs")
-            }
-        }
-    }
-
-    private fun emitSaveResult(wrote: Boolean) {
-        emitMessage(if (wrote) "Saved" else "Save failed — see Logs")
-    }
-
-    /** Raw text for the read-only viewer; null when the read failed — the screen renders its own error state. */
-    suspend fun readRawJournal(path: String): String? = app.journalRepository.read(path)
-
-    fun reloadEntries() {
-        viewModelScope.launch {
-            val path = settings.journalPath.first()
-            if (path.isNotBlank()) {
-                val content = readJournalContent(path)
-                if (content != null) {
-                    _allEntries.value = withContext(Dispatchers.Default) { JournalWriter.readAll(content) }
-                }
             }
         }
     }
@@ -312,31 +243,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             emitMessage("Save failed — see Logs")
             return "Save failed — see Logs"
         }
-        _allEntries.value = writeResult.entries
+        app.journalSession.apply(writeResult.entries)
         val msg = "Written: ${result.date} ${result.payee} — ${result.postings.firstOrNull()?.let { "${it.amount} ${it.currency}" } ?: ""}"
         AppLogger.info("Simulate", "Notification written ${result.date}")
         emitMessage("Simulated: $msg")
         return msg
     }
 
-    private fun getRulesDir(): java.io.File {
-        val dir = java.io.File(getApplication<Application>().filesDir, "rules")
+    private fun getFiltersDir(): File {
+        val dir = File(getApplication<Application>().filesDir, "filters")
         dir.mkdirs()
         return dir
-    }
-
-    private fun getFiltersDir(): java.io.File {
-        val dir = java.io.File(getApplication<Application>().filesDir, "filters")
-        dir.mkdirs()
-        return dir
-    }
-
-    fun saveCategorizationRules(rules: List<CategorizationRule>) {
-        viewModelScope.launch {
-            val rulesDir = getRulesDir()
-            RuleIO.saveCategorizationRules(rulesDir, rules)
-            _categorizationRules.value = RuleIO.loadCategorizationRules(rulesDir)
-        }
     }
 
     private val filterSaveMutex = Mutex()
@@ -353,12 +270,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (revision == filterSaveRevision) FilterIO.saveFilters(getFiltersDir(), filters)
             }
         }
-    }
-
-    fun getCachedCategorizationRules(): List<CategorizationRule> = _categorizationRules.value
-
-    fun setNotificationSources(sources: List<String>) {
-        viewModelScope.launch { settings.setNotificationSources(sources) }
     }
 
     fun addFilter(account: String) {
@@ -410,9 +321,5 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         FilterMode.INCLUDE -> FilterMode.EXCLUDE
         FilterMode.EXCLUDE -> FilterMode.OFF
         FilterMode.OFF -> FilterMode.INCLUDE
-    }
-
-    fun setFilterLimit(limit: Int) {
-        viewModelScope.launch { settings.setFilterRowLimit(limit) }
     }
 }

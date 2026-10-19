@@ -27,7 +27,6 @@ import java.time.ZoneOffset
  * Date text field (YYYY-MM-DD) with a calendar button that opens a date picker.
  * The text stays editable so dates can still be typed by hand.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateField(
     value: String,
@@ -58,38 +57,49 @@ fun DateField(
     )
 
     if (showPicker) {
-        val initialMillis = remember(value) {
-            runCatching {
-                LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-            }.getOrNull()
-        }
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
-
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pickerState.selectedDateMillis?.let {
-                            val picked = Instant.ofEpochMilli(it)
-                                .atZone(ZoneOffset.UTC)
-                                .toLocalDate()
-                                .toString()
-                            onValueChange(picked)
-                        }
-                        showPicker = false
-                    },
-                ) {
-                    Text(stringResource(R.string.save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        ) {
-            DatePicker(state = pickerState)
-        }
+        DatePickerModal(
+            value = value,
+            onValueChange = onValueChange,
+            onDismiss = { showPicker = false },
+        )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DatePickerModal(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val initialMillis = remember(value) {
+        runCatching {
+            LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        }.getOrNull()
+    }
+    val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    pickerState.selectedDateMillis?.let { onValueChange(epochMillisToDate(it)) }
+                    onDismiss()
+                },
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    ) {
+        DatePicker(state = pickerState)
+    }
+}
+
+private fun epochMillisToDate(millis: Long): String =
+    Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()

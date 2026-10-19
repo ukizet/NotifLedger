@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,7 @@ private sealed interface RawLoadState {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RawJournalScreen(
-    viewModel: MainViewModel,
+    viewModel: RawJournalViewModel,
     onBack: () -> Unit,
 ) {
     val journalPath by viewModel.journalPath.collectAsState()
@@ -63,36 +64,65 @@ fun RawJournalScreen(
             )
         },
     ) { padding ->
-        when (val s = state) {
-            RawLoadState.Loading -> Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
-
-            RawLoadState.Empty -> Text(
-                text = stringResource(R.string.no_journal_or_empty),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            )
-
-            RawLoadState.Error -> Text(
-                text = stringResource(R.string.raw_journal_open_error),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            )
-
-            is RawLoadState.Loaded -> Text(
-                text = s.content,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                softWrap = false,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-                    .horizontalScroll(rememberScrollState())
-                    .verticalScroll(rememberScrollState()),
-            )
-        }
+        RawJournalContent(
+            state = state,
+            modifier = Modifier.padding(padding),
+        )
     }
+}
+
+@Composable
+private fun RawJournalContent(state: RawLoadState, modifier: Modifier = Modifier) {
+    when (state) {
+        RawLoadState.Loading -> RawLoadingBox(modifier)
+
+        RawLoadState.Empty -> RawJournalMessage(
+            text = stringResource(R.string.no_journal_or_empty),
+            modifier = modifier,
+        )
+
+        RawLoadState.Error -> RawJournalMessage(
+            text = stringResource(R.string.raw_journal_open_error),
+            color = MaterialTheme.colorScheme.error,
+            modifier = modifier,
+        )
+
+        is RawLoadState.Loaded -> RawJournalText(state.content, modifier)
+    }
+}
+
+@Composable
+private fun RawLoadingBox(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) { CircularProgressIndicator() }
+}
+
+@Composable
+private fun RawJournalMessage(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+) {
+    Text(
+        text = text,
+        color = color,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = modifier.fillMaxSize().padding(16.dp),
+    )
+}
+
+@Composable
+private fun RawJournalText(content: String, modifier: Modifier = Modifier) {
+    Text(
+        text = content,
+        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        softWrap = false,
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .horizontalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState()),
+    )
 }

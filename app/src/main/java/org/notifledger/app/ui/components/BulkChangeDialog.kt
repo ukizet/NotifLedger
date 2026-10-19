@@ -38,45 +38,17 @@ fun BulkChangeDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.bulk_change_title)) },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                DateField(
-                    value = date,
-                    onValueChange = { date = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = stringResource(R.string.date),
-                )
-                OutlinedTextField(
-                    value = payee,
-                    onValueChange = { payee = it },
-                    label = { Text(stringResource(R.string.payee)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = currency,
-                    onValueChange = { currency = it },
-                    label = { Text(stringResource(R.string.currency)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                AccountField(
-                    value = account,
-                    onValueChange = { account = it },
-                    suggestions = accountSuggestions,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = stringResource(R.string.account),
-                )
-                Text(
-                    text = stringResource(R.string.bulk_change_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
+            BulkChangeFields(
+                date = date,
+                payee = payee,
+                currency = currency,
+                account = account,
+                accountSuggestions = accountSuggestions,
+                onDateChange = { date = it },
+                onPayeeChange = { payee = it },
+                onCurrencyChange = { currency = it },
+                onAccountChange = { account = it },
+            )
         },
         confirmButton = {
             TextButton(
@@ -97,4 +69,57 @@ fun BulkChangeDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
+}
+
+@Composable
+private fun BulkChangeFields(
+    date: String,
+    payee: String,
+    currency: String,
+    account: String,
+    accountSuggestions: List<String>,
+    onDateChange: (String) -> Unit,
+    onPayeeChange: (String) -> Unit,
+    onCurrencyChange: (String) -> Unit,
+    onAccountChange: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        DateField(
+            value = date,
+            onValueChange = onDateChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.date),
+        )
+        OutlinedTextField(
+            value = payee,
+            onValueChange = onPayeeChange,
+            label = { Text(stringResource(R.string.payee)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = currency,
+            onValueChange = onCurrencyChange,
+            label = { Text(stringResource(R.string.currency)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        AccountField(
+            value = account,
+            onValueChange = onAccountChange,
+            suggestions = accountSuggestions,
+            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.account),
+        )
+        Text(
+            text = stringResource(R.string.bulk_change_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
 }

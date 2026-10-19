@@ -211,3 +211,156 @@ Targets: no composable over ~1 screen, ≤3 nesting levels.
 - Parser stays a number heuristic — no per-bank config (design §8).
 - Repository pure text transforms run on `Dispatchers.IO` (reviewer low-note);
   fine at current journal sizes — revisit if multi-MB journals appear.
+
+---
+
+# Round 2 — review findings (2026-10-19)
+
+Five findings from the 2026-10-19 review. Recon verified against source in
+session; tracking and ownership below. Legend as above.
+
+## Recon (verified 2026-10-19)
+
+- Parser (`ParserEngine.kt`): `\d[\d\s.,]*` first match wins, so `*1234` card
+  masks and dates become the "amount"; a date before the amount
+  (`15.10.2026 184,50`) makes the whole run unparseable and the amount is
+  lost. Listener path still posts a best-effort empty-amount entry
+  (`NotificationHandler.processNotification`); the simulate dialog refuses.
+- Backup (`JournalRepository.writeContent`): one `journal_backup.txt`,
+  overwritten on every write — a bad write followed by another write destroys
+  the good copy.
+- UI (script, brace matching): 22 functions over 60 lines; indent depth 10 at
+  `CategorizationRulesScreen.kt:106`, `NotificationSourcesScreen.kt:239`,
+  `StatisticsScreen.kt:179`.
+- `MainViewModel`: 418 lines, one activity-scoped instance for all 8 screens.
+- `NotifLedgerApp`: 5 `runBlocking` settings getters; only caller
+  `NotifListener.handleNotification` is already suspend on `Dispatchers.IO`.
+
+## Execution order & ownership
+
+Phase A and B run sequentially (B changes screens + VMs; A must be green
+first). No new dependencies, no DI, `JournalWriter` stays pure.
+
+| Phase | Owner | Files (sole owner) | Status |
+|---|---|---|---|
+| A | orchestrator | `parser/ParserEngine.kt`, `journal/JournalRepository.kt`, new `journal/JournalBackup.kt`, `NotifLedgerApp.kt`, `AGENTS.md`, `docs/design.md`, `docs/architecture.md` | [x] |
+| A | QATestEngineer | `ParserEngineTest.kt`, new `journal/JournalBackupTest.kt`, build + test run | [x] |
+| B | orchestrator | `ui/MainViewModel.kt`, 7 new `ui/*ViewModel.kt`, new `journal/JournalSession.kt`, new `ui/Suggestions.kt`, `MainActivity.kt`, `ui/NotifLedgerNavGraph.kt` | [x] |
+| B | UIUXDesigner ×4 | fix file groups (below) | [x] |
+| C | QATestEngineer | full test run + `assembleDebug` + 60-line/nesting re-measure | [x] |
+| C | CodeReviewer | diff review | [x] |
+
+## Fix 1 — parser: currency-adjacent amount, skip masks/dates
+
+`[x]` (QA: 43 parser tests green; mutation check confirmed the mask/date/
+adjacency logic is actually exercised)
+
+- `ParserEngine.parse` (signature unchanged): scan number runs; skip `*1234`
+  card masks (run preceded by `*`) and dates
+  (`\d{1,2}[./-]\d{1,2}[./-]\d{2,4}`); when a date is directly followed by an
+  amount in the same run, keep the amount. Prefer the first candidate adjacent
+  to a currency marker (kr/NOK/USD/EUR/GBP/SEK/DKK as a whole code, `€/$/£`),
+  else the first valid candidate. Body first, title fallback unchanged. Still
+  no per-bank config.
+- New tests: `Kjøp med kort *1234: 184,50 kr` → 184.50; `15.10.2026 Kjøp
+  184,50 kr` → 184.50; `15.10.2026 184,50` → 184.50; `Kjøp hos Rema 1000 for
+  184,50 kr` → 184.50; mask-only text → null.
+- Docs: `design.md` §2/§3/§4.3/§8, `architecture.md` §1, `AGENTS.md` parser
+  bullet.
+
+## Fix 2 — backups: keep 10 timestamped copies
+
+`[x]` (QA: 4 JournalBackup tests green; repository write path covered by build
++ unchanged abort-on-backup-failure)
+
+- `JournalBackup.kt` (new, pure): `fileName(timestamp)` +
+  `namesToDelete(names, keep)`; JVM-testable without Robolectric.
+- `JournalRepository`: write `backups/journal_backup_<yyyyMMdd_HHmmss_SSS>.txt`
+  before each overwrite, prune to `MAX_BACKUPS = 10`; abort the journal write
+  if the backup fails (unchanged). Stale `journal_backup.txt` left alone.
+- Docs: `design.md` §4.9, `architecture.md` §1/§8.
+
+## Fix 3 — UI decomposition
+
+`[x]` (verified by orchestrator: 230 functions in `app/src/main`, 0 over 60
+lines; deepest nesting 6; `SwipeToDelete.kt` needed no change — already under
+the limit)
+
+- Target: 0 functions over 60 lines in `app/src/main`, refactored-file nesting
+  ≤6 (Compose lambda depth; was 10). Pure extraction — no visual/behavior
+  change; `EntryList`, `isInSwipeStartZone`, `crossesDeleteThreshold`,
+  `updatedDrag` keep their signatures (tested).
+- Owners: orchestrator — `NotifLedgerNavGraph`; UIUXDesigner A —
+  `MainScreen.kt`, `components/SimulateNotificationDialog.kt`,
+  `components/BulkChangeDialog.kt`, `components/TransactionRow.kt`;
+  UIUXDesigner B — `components/TransactionForm.kt`, `components/DateField.kt`,
+  `components/FilterRow.kt`, `components/SwipeToDelete.kt`,
+  `components/DonutChart.kt`; UIUXDesigner C1 — `QuickAddScreen.kt`,
+  `SettingsScreen.kt`, `StatisticsScreen.kt`; UIUXDesigner C2 —
+  `CategorizationRulesScreen.kt`, `NotificationSourcesScreen.kt`,
+  `LogsScreen.kt`, `RawJournalScreen.kt`.
+- `docs/coding_standarts.md` unchanged.
+
+## Fix 4 — MainViewModel per screen
+
+`[x]` (screens re-wired; `assembleDebug` + tests green; compiler warnings from
+the old dead `onNavigateToRawJournal`/`onNavigateToCategorizationRules`/
+`onNavigateToLogs` params cleaned up — `MainBottomBar` navigates directly)
+
+- `journal/JournalSession.kt` (new, constructed in `NotifLedgerApp`): in-memory
+  `entries`/`isLoading` StateFlows, `suspend refresh()` (reads the journal via
+  `JournalRepository`), `apply(entries)` after a successful write. Not a cache:
+  the file stays the source of truth.
+- Per-screen VMs created per back-stack entry in `NotifLedgerNavGraph`
+  (`MainActivity` stops creating one): `MainViewModel` (list/filters/sort/
+  paging/edit/bulk/simulate/suggestions/journal path), `QuickAddViewModel`,
+  `LogsViewModel` (owns the `AppLogger` subscription), `RawJournalViewModel`,
+  `SettingsViewModel`, `CategorizationRulesViewModel`,
+  `NotificationSourcesViewModel`, `StatisticsViewModel`. Explicit setters
+  replace `viewModel.settings` access. Shared payee/account derivation in
+  `ui/Suggestions.kt`.
+
+## Fix 5 — drop `runBlocking` from `NotifLedgerApp`
+
+`[x]` (getters are `suspend`; `assembleDebug` green)
+
+- 5 getters → `suspend`; `runBlocking` import deleted; `NotifListener` already
+  calls them from its suspend worker. `getCategorizationRules()` stays sync.
+- Docs: `AGENTS.md`, `architecture.md` §1.
+
+## Verification
+
+`[x]`
+
+- [x] `devenv shell -- ./gradlew testDebugUnitTest` green (223 tests, 0 failures)
+- [x] `devenv shell -- ./gradlew assembleDebug` green (0 warnings)
+- [x] function-size/nesting script: 0 functions >60 lines (230 functions;
+  QA's comment-aware matcher: 296 functions, 0 over 60; max nesting 6 in
+  refactored files)
+- [x] CodeReviewer pass; findings applied and re-verified (see below)
+
+## Phase C review findings applied (2026-10-19)
+
+- Quick-add write could be cancelled by the back-stack pop (per-screen VMs):
+  moved screen-launched writes to `NotifLedgerApp.writeScope` (QuickAdd,
+  Settings, CategorizationRules, NotificationSources).
+- Parser: `*1234 184,50 kr` was one number run and got discarded wholesale;
+  mask digits are now stripped and the remainder kept when it has a decimal
+  separator or is a single currency-adjacent group (5 new tests, mutation-
+  checked).
+- QA counterexample caught in re-verification: `*1234 5678 9012 kr` posted
+  concatenated mask digits (`56789012`); the guard now rejects multi-group
+  remainders.
+- `JournalBackup.namesToDelete` now only counts files matching the exact
+  timestamped name pattern (1 new test).
+- `JournalSession.refresh` no longer clears `isLoading` before the read
+  finishes (cold-start flash of the empty state).
+- Manifest: `filesDir/backups` excluded from Android cloud backup and device
+  transfer (`backup_rules.xml`, `data_extraction_rules.xml`) — 10 full
+  journal copies stay internal-only.
+- Docs: AGENTS.md repository boundary, architecture §7 Statistics node, §8
+  cache wording, design §4.4 rules timing, §4.9 backup exclusion, listener
+  comment.
+- Residual (accepted): `MainViewModel` write paths stay on `viewModelScope` —
+  Main is the root destination, so it only dies with the app, not on
+  navigation.

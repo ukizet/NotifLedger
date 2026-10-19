@@ -1,6 +1,5 @@
 package org.notifledger.app.ui
 
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -24,7 +23,7 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickAddScreen(
-    viewModel: MainViewModel,
+    viewModel: QuickAddViewModel,
     onBack: () -> Unit,
 ) {
     val defaultAccount by viewModel.defaultAccount.collectAsState()

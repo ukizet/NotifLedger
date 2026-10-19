@@ -24,12 +24,12 @@ import androidx.compose.ui.unit.dp
 import org.notifledger.app.R
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.log.AppLogger
+import org.notifledger.app.model.Posting
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val dateDisplay = DateTimeFormatter.ofPattern("MMM d")
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TransactionRow(
     entry: JournalEntry,
@@ -47,71 +47,102 @@ fun TransactionRow(
         modifier = modifier.fillMaxWidth(),
         enabled = !selectionMode,
     ) {
-        Card(
+        TransactionCard(
+            entry = entry,
+            displayDate = displayDate,
+            deleteLabel = deleteLabel,
+            selected = selected,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onDelete = onDelete,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TransactionCard(
+    entry: JournalEntry,
+    displayDate: String,
+    deleteLabel: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .combinedClickable(
+                onClickLabel = stringResource(R.string.edit_transaction),
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(deleteLabel) {
+                        onDelete()
+                        true
+                    },
+                )
+            },
+        colors = if (selected) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            CardDefaults.cardColors()
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .combinedClickable(
-                    onClickLabel = stringResource(R.string.edit_transaction),
-                    onClick = onClick,
-                    onLongClick = onLongClick,
-                )
-                .semantics {
-                    customActions = listOf(
-                        CustomAccessibilityAction(deleteLabel) {
-                            onDelete()
-                            true
-                        },
-                    )
-                },
-            colors = if (selected) {
-                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-            } else {
-                CardDefaults.cardColors()
-            },
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                .padding(12.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = displayDate,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = entry.payee,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(3f),
-                    )
-                }
-
-                entry.postings.forEach { posting ->
-                    val displayAmount = if (posting.amount.isNotBlank()) {
-                        "${posting.amount} ${posting.currency}"
-                    } else {
-                        ""
-                    }
-                    Text(
-                        text = "${posting.account}: $displayAmount",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
+            TransactionHeader(displayDate = displayDate, payee = entry.payee)
+            entry.postings.forEach { posting ->
+                PostingLine(posting = posting)
             }
         }
     }
+}
+
+@Composable
+private fun TransactionHeader(displayDate: String, payee: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = displayDate,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = payee,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(3f),
+        )
+    }
+}
+
+@Composable
+private fun PostingLine(posting: Posting) {
+    val displayAmount = if (posting.amount.isNotBlank()) {
+        "${posting.amount} ${posting.currency}"
+    } else {
+        ""
+    }
+    Text(
+        text = "${posting.account}: $displayAmount",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 8.dp),
+    )
 }
 
 private fun formatDisplayDate(raw: String): String {

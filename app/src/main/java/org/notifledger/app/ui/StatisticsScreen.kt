@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.R
+import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.stats.CategoryTotal
 import org.notifledger.app.stats.PeriodTotal
 import org.notifledger.app.stats.Statistics
@@ -50,14 +52,37 @@ import org.notifledger.app.ui.components.DonutSlice
 import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 import org.notifledger.app.ui.components.SpendingBarChart
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
-    viewModel: MainViewModel,
+    viewModel: StatisticsViewModel,
     onBack: () -> Unit,
 ) {
-    val entries by viewModel.journalEntries.collectAsState()
-    val accountOptions by viewModel.existingAccounts.collectAsState()
+    val entries by viewModel.entries.collectAsState()
+    val accountOptions by viewModel.accountOptions.collectAsState()
+
+    Scaffold(
+        topBar = {
+            NotifLedgerTopAppBar(
+                title = stringResource(R.string.statistics),
+                onBack = onBack,
+            )
+        },
+    ) { padding ->
+        StatisticsContent(
+            entries = entries,
+            accountOptions = accountOptions,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        )
+    }
+}
+
+@Composable
+private fun StatisticsContent(
+    entries: List<JournalEntry>,
+    accountOptions: List<String>,
+    modifier: Modifier = Modifier,
+) {
     var selectedAccounts by remember { mutableStateOf(emptySet<String>()) }
     var daysInput by remember { mutableStateOf("7") }
     var days by remember { mutableStateOf(7) }
@@ -76,117 +101,138 @@ fun StatisticsScreen(
         Statistics.transactionCount(entries, accounts, days)
     }
 
-    Scaffold(
-        topBar = {
-            NotifLedgerTopAppBar(
-                title = stringResource(R.string.statistics),
-                onBack = onBack,
-            )
-        },
-    ) { padding ->
+    Column(modifier = modifier.padding(16.dp)) {
+        AccountDropdown(
+            selected = selectedAccounts,
+            options = accountOptions,
+            onSelectionChange = { selectedAccounts = it },
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        DaysField(
+            value = daysInput,
+            onValueChange = { digits ->
+                daysInput = digits
+                digits.toIntOrNull()?.let { if (it >= 1) days = it }
+            },
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        StatisticsBody(
+            count = count,
+            currency = currency,
+            categories = categories,
+            periods = periods,
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.StatisticsBody(
+    count: Int,
+    currency: String?,
+    categories: List<CategoryTotal>,
+    periods: List<PeriodTotal>,
+) {
+    Text(
+        text = pluralStringResource(
+            R.plurals.stats_transaction_count,
+            count,
+            count,
+        ),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+
+    when {
+        count == 0 -> HintText(stringResource(R.string.stats_empty))
+        currency == null || categories.isEmpty() -> HintText(
+            stringResource(R.string.stats_no_expenses),
+        )
+        else -> {
+            HintText(stringResource(R.string.stats_in_currency, currency))
+            Spacer(Modifier.height(8.dp))
+            ChartsPager(categories = categories, periods = periods, currency = currency)
+        }
+    }
+}
+
+@Composable
+private fun HintText(text: String) {
+    Text(
+        text = text,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ColumnScope.ChartsPager(
+    categories: List<CategoryTotal>,
+    periods: List<PeriodTotal>,
+    currency: String,
+) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxWidth().weight(1f),
+    ) { page ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+                .verticalScroll(rememberScrollState()),
         ) {
-            AccountDropdown(
-                selected = selectedAccounts,
-                options = accountOptions,
-                onToggle = { account ->
-                    selectedAccounts = if (account in selectedAccounts) {
-                        selectedAccounts - account
-                    } else {
-                        selectedAccounts + account
-                    }
-                },
-                onClear = { selectedAccounts = emptySet() },
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = daysInput,
-                onValueChange = { text ->
-                    val digits = text.filter(Char::isDigit).take(5)
-                    daysInput = digits
-                    digits.toIntOrNull()?.let { if (it >= 1) days = it }
-                },
-                label = { Text(stringResource(R.string.stats_days)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                text = pluralStringResource(
-                    R.plurals.stats_transaction_count,
-                    count,
-                    count,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-
-            if (count == 0) {
-                Text(
-                    text = stringResource(R.string.stats_empty),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else if (currency == null || categories.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.stats_no_expenses),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.stats_in_currency, currency),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                val pagerState = rememberPagerState(pageCount = { 2 })
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                ) { page ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        when (page) {
-                            0 -> DonutCard(categories = categories, currency = currency)
-                            1 -> BarsCard(periods = periods)
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    repeat(2) { page ->
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 4.dp)
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (pagerState.currentPage == page) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant
-                                    },
-                                ),
-                        )
-                    }
-                }
+            when (page) {
+                0 -> DonutCard(categories = categories, currency = currency)
+                1 -> BarsCard(periods = periods)
             }
         }
     }
+    PagerDots(selectedPage = pagerState.currentPage, pageCount = 2)
+}
+
+@Composable
+private fun PagerDots(
+    selectedPage: Int,
+    pageCount: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        repeat(pageCount) { page ->
+            val color = if (selectedPage == page) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DaysField(
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { text ->
+            onValueChange(text.filter(Char::isDigit).take(5))
+        },
+        label = { Text(stringResource(R.string.stats_days)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -246,8 +292,7 @@ private fun BarsCard(
 private fun AccountDropdown(
     selected: Set<String>,
     options: List<String>,
-    onToggle: (String) -> Unit,
-    onClear: () -> Unit,
+    onSelectionChange: (Set<String>) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val allLabel = stringResource(R.string.stats_all_accounts)
@@ -272,15 +317,18 @@ private fun AccountDropdown(
             DropdownMenuItem(
                 text = { Text(allLabel) },
                 leadingIcon = { Checkbox(checked = selected.isEmpty(), onCheckedChange = null) },
-                onClick = { onClear() },
+                onClick = { onSelectionChange(emptySet()) },
             )
             options.forEach { account ->
                 DropdownMenuItem(
                     text = { Text(account) },
                     leadingIcon = { Checkbox(checked = account in selected, onCheckedChange = null) },
-                    onClick = { onToggle(account) },
+                    onClick = { onSelectionChange(toggleAccount(selected, account)) },
                 )
             }
         }
     }
 }
+
+private fun toggleAccount(selected: Set<String>, account: String): Set<String> =
+    if (account in selected) selected - account else selected + account

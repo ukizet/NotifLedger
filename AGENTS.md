@@ -104,14 +104,16 @@ the human confirm it.
 - **No Room / database.** State lives in the hledger journal file (via Storage Access
   Framework `content://` URIs) and app settings in DataStore Preferences. Don't add a
   DB "to cache things" — that's a non-goal.
-- **`JournalWriter` is pure** — no file I/O. The ViewModel reads/writes through Android's
-  `ContentResolver`. Keep I/O out of `JournalWriter`; it's tested as a pure text
-  formatter and that boundary matters.
-- **`NotifLedgerApp` uses `runBlocking`** to read settings synchronously for the
-  `NotifListener` path — intentional, not a bug to "fix" with coroutines.
-- **Parser is intentionally dumb**: first number in the notification = amount, title =
-  payee. Norwegian comma decimals (`184,50`) handled. Do **not** add per-bank parser
-  config — explicit non-goal (design.md §8).
+- **`JournalWriter` is pure** — no file I/O. The UI ViewModels read/write through
+  `JournalRepository` (Android's `ContentResolver`). Keep I/O out of
+  `JournalWriter`; it's tested as a pure text formatter and that boundary matters.
+- **`NotifLedgerApp` settings getters are `suspend`** — the `NotifListener` path
+  runs on a coroutine (`Dispatchers.IO`), so there is no `runBlocking` on it.
+- **Parser stays a generic heuristic**: prefers the number next to a currency
+  marker (`kr`, `NOK`, `€`, …), skips card masks (`*1234`) and dates, falls
+  back to the first parseable number in the body, then the title; title =
+  payee. Norwegian comma decimals (`184,50`) handled. Do **not** add per-bank
+  parser config — explicit non-goal (design.md §8).
 - KSP plugin is declared in root `build.gradle.kts` but **not applied in `:app`** (no
   Room/Hilt/Moshi). Don't assume KSP annotations work without applying the plugin.
 

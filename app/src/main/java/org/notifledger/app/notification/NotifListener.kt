@@ -15,7 +15,8 @@ import org.notifledger.app.log.AppLogger
 /**
  * Listens for notifications from user-selected banking/payment apps.
  *
- * Uses title as payee, finds the first number as amount, then writes to journal.
+ * Uses title as payee, prefers the number next to a currency marker as
+ * amount, then writes to journal.
  */
 class NotifListener : NotificationListenerService() {
 

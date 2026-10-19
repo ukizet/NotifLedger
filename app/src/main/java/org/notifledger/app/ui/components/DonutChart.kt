@@ -71,44 +71,61 @@ fun DonutChart(
     val total = prepared.sumOf { it.value }
 
     Column(modifier = modifier) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(180.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                if (total <= BigDecimal.ZERO) return@Canvas
-                val strokeWidth = 28.dp.toPx()
-                val diameter = size.minDimension - strokeWidth
-                val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
-                var startAngle = -90f
-                prepared.forEachIndexed { index, slice ->
-                    val sweep = slice.value.toFloat() / total.toFloat() * 360f
-                    drawArc(
-                        color = colors[index],
-                        startAngle = startAngle,
-                        sweepAngle = sweep,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = Size(diameter, diameter),
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
-                    )
-                    startAngle += sweep
-                }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = centerValue, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = centerLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        DonutDial(
+            slices = prepared,
+            colors = colors,
+            total = total,
+            centerValue = centerValue,
+            centerLabel = centerLabel,
+        )
 
         Spacer(Modifier.height(12.dp))
 
         prepared.forEachIndexed { index, slice ->
             LegendRow(slice, colors[index], formatPercent(slice.value, total))
+        }
+    }
+}
+
+@Composable
+private fun DonutDial(
+    slices: List<DonutSlice>,
+    colors: List<Color>,
+    total: BigDecimal,
+    centerValue: String,
+    centerLabel: String,
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(180.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            if (total <= BigDecimal.ZERO) return@Canvas
+            val strokeWidth = 28.dp.toPx()
+            val diameter = size.minDimension - strokeWidth
+            val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+            var startAngle = -90f
+            slices.forEachIndexed { index, slice ->
+                val sweep = slice.value.toFloat() / total.toFloat() * 360f
+                drawArc(
+                    color = colors[index],
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = Size(diameter, diameter),
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
+                )
+                startAngle += sweep
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = centerValue, style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = centerLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import org.notifledger.app.log.AppLogger
 import org.notifledger.app.model.Transaction
 import java.io.File
+import java.time.LocalDateTime
 
 /**
  * The single point of journal I/O.
@@ -86,22 +87,8 @@ class JournalRepository(private val app: Application) {
 
     private fun writeContent(operation: String, path: String, existing: String, content: String): Boolean {
         val backupAttempted = existing.isNotBlank()
-        val backupNote = if (backupAttempted) " (previous content saved to $BACKUP_FILE_NAME)" else ""
-        if (backupAttempted) {
-            try {
-                // ponytail: content:// writes are not atomic (no rename), so a truncated or failed
-                // write has no undo — this backup is the recovery point. Revisit if a transactional
-                // store ever appears.
-                File(app.filesDir, BACKUP_FILE_NAME).writeText(existing)
-            } catch (e: Exception) {
-                AppLogger.error(
-                    TAG,
-                    "$operation write aborted for $path: backup to $BACKUP_FILE_NAME failed: " +
-                        "${e.message} — journal untouched",
-                )
-                return false
-            }
-        }
+        val backupNote = if (backupAttempted) " (previous content saved to $BACKUP_DIR/)" else ""
+        if (backupAttempted && !writeBackup(operation, path, existing)) return false
         return try {
             val uri = Uri.parse(path)
             val stream = app.contentResolver.openOutputStream(uri, "wt")
@@ -118,8 +105,34 @@ class JournalRepository(private val app: Application) {
         }
     }
 
+    /**
+     * content:// writes are not atomic (no rename), so a truncated or failed
+     * write has no undo — these backups are the recovery point. Rotate so one
+     * bad write cannot destroy the last good copy. Revisit if a transactional
+     * store ever appears.
+     */
+    private fun writeBackup(operation: String, path: String, content: String): Boolean = try {
+        val dir = File(app.filesDir, BACKUP_DIR).apply { mkdirs() }
+        File(dir, JournalBackup.fileName(LocalDateTime.now())).writeText(content)
+        pruneBackups(dir)
+        true
+    } catch (e: Exception) {
+        AppLogger.error(
+            TAG,
+            "$operation write aborted for $path: backup to $BACKUP_DIR failed: " +
+                "${e.message} — journal untouched",
+        )
+        false
+    }
+
+    private fun pruneBackups(dir: File) {
+        JournalBackup.namesToDelete(dir.list()?.toList().orEmpty(), MAX_BACKUPS)
+            .forEach { File(dir, it).delete() }
+    }
+
     companion object {
         private const val TAG = "Journal"
-        private const val BACKUP_FILE_NAME = "journal_backup.txt"
+        private const val BACKUP_DIR = "backups"
+        private const val MAX_BACKUPS = 10
     }
 }

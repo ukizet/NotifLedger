@@ -37,44 +37,19 @@ fun SimulateNotificationDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.simulate_notification)) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.simulate_intro),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.notif_title_label)) },
-                    placeholder = { Text(stringResource(R.string.notif_title_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text(stringResource(R.string.notif_text_label)) },
-                    placeholder = { Text(stringResource(R.string.notif_text_placeholder)) },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                )
-                if (resultMessage.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(resultMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
-            }
+            SimulateNotificationFields(
+                title = title,
+                text = text,
+                resultMessage = resultMessage,
+                onTitleChange = { title = it },
+                onTextChange = { text = it },
+            )
         },
         confirmButton = {
             OutlinedButton(
                 onClick = {
                     scope.launch {
-                        resultMessage = viewModel.simulateNotification(
-                            title = title.trim(),
-                            text = text.trim(),
-                        )
+                        resultMessage = viewModel.simulateNotification(title.trim(), text.trim())
                     }
                 },
             ) {
@@ -85,4 +60,43 @@ fun SimulateNotificationDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
         },
     )
+}
+
+@Composable
+private fun SimulateNotificationFields(
+    title: String,
+    text: String,
+    resultMessage: String,
+    onTitleChange: (String) -> Unit,
+    onTextChange: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.simulate_intro),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = title,
+            onValueChange = onTitleChange,
+            label = { Text(stringResource(R.string.notif_title_label)) },
+            placeholder = { Text(stringResource(R.string.notif_title_placeholder)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = onTextChange,
+            label = { Text(stringResource(R.string.notif_text_label)) },
+            placeholder = { Text(stringResource(R.string.notif_text_placeholder)) },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth().height(100.dp),
+        )
+        if (resultMessage.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(resultMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+    }
 }

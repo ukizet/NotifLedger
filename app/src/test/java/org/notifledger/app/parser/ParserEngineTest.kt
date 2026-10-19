@@ -489,4 +489,124 @@ class ParserEngineTest {
         assertNotNull(result)
         assertEquals("250", result!!.postings[0].amount)
     }
+
+    // ── Card masks, dates, and currency adjacency ───────────────────────────
+
+    @Test
+    fun `card mask number is skipped, amount next to kr wins`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Kjøp med kort *1234: 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("Kjøp med kort", result!!.payee)
+        assertEquals("184.50", result.postings[0].amount)
+    }
+
+    @Test
+    fun `date before amount is skipped`() {
+        val result = ParserEngine.parse(
+            title = "Kortkjøp",
+            text = "15.10.2026 Kjøp 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `date immediately followed by amount keeps the amount`() {
+        val result = ParserEngine.parse(
+            title = "Kortkjøp",
+            text = "15.10.2026 184,50",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `currency adjacent amount beats earlier plain number`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp",
+            text = "Kjøp hos Rema 1000 for 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `card mask only text with no title number returns null`() {
+        val result = ParserEngine.parse(
+            title = "Melding",
+            text = "Kort *1234 belastet",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `amount sharing the mask's number run is kept`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Kjøp med kort *1234 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `mask followed by whole-kroner amount is kept`() {
+        val result = ParserEngine.parse(
+            title = "Kortkjøp",
+            text = "Betalt med kort *1234 250 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("250", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `plain number after a mask is mask groups, not an amount`() {
+        val result = ParserEngine.parse(
+            title = "Melding",
+            text = "Kort *1234 5678",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `multi-group mask before kr is not concatenated into an amount`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Kjøp med kort *1234 5678 9012 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `decimal amount after a mask needs no currency marker`() {
+        val result = ParserEngine.parse(
+            title = "Kortkjøp",
+            text = "Kort *1234 184,50",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
 }

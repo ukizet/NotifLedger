@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -74,33 +75,11 @@ fun FilterRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (filters.size < maxFilters) {
-            Button(
+            AddFilterButton(
+                isFirst = filters.isEmpty(),
                 onClick = { showAddDialog = true },
-                modifier = Modifier.weight(1f).heightIn(min = 40.dp),
-                colors = if (filters.isEmpty()) {
-                    ButtonDefaults.buttonColors(
-                        containerColor = FilterAddGreen,
-                        contentColor = Color.White,
-                    )
-                } else {
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            ) {
-                Icon(
-                    Lucide.Plus,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.filter_add),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+                modifier = Modifier.weight(1f),
+            )
         }
         filters.forEachIndexed { index, filter ->
             FilterChipItem(
@@ -115,6 +94,70 @@ fun FilterRow(
         }
     }
 
+    FilterDialogs(
+        filters = filters,
+        accountSuggestions = accountSuggestions,
+        showAddDialog = showAddDialog,
+        renameIndex = renameIndex,
+        changeIndex = changeIndex,
+        onAdd = onAdd,
+        onRename = onRename,
+        onChangeCategory = onChangeCategory,
+        onDismissAdd = { showAddDialog = false },
+        onDismissRename = { renameIndex = -1 },
+        onDismissChange = { changeIndex = -1 },
+    )
+}
+
+@Composable
+private fun AddFilterButton(
+    isFirst: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 40.dp),
+        colors = if (isFirst) {
+            ButtonDefaults.buttonColors(
+                containerColor = FilterAddGreen,
+                contentColor = Color.White,
+            )
+        } else {
+            ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    ) {
+        Icon(
+            Lucide.Plus,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = stringResource(R.string.filter_add),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun FilterDialogs(
+    filters: List<TransactionFilter>,
+    accountSuggestions: List<String>,
+    showAddDialog: Boolean,
+    renameIndex: Int,
+    changeIndex: Int,
+    onAdd: (String) -> Unit,
+    onRename: (Int, String) -> Unit,
+    onChangeCategory: (Int, String) -> Unit,
+    onDismissAdd: () -> Unit,
+    onDismissRename: () -> Unit,
+    onDismissChange: () -> Unit,
+) {
     if (showAddDialog) {
         AccountFilterDialog(
             title = stringResource(R.string.filter_add_title),
@@ -124,9 +167,9 @@ fun FilterRow(
             usedAccounts = filters.map { it.account },
             onConfirm = {
                 onAdd(it)
-                showAddDialog = false
+                onDismissAdd()
             },
-            onDismiss = { showAddDialog = false },
+            onDismiss = onDismissAdd,
         )
     }
 
@@ -135,9 +178,9 @@ fun FilterRow(
             initialLabel = filters[renameIndex].label,
             onConfirm = {
                 onRename(renameIndex, it)
-                renameIndex = -1
+                onDismissRename()
             },
-            onDismiss = { renameIndex = -1 },
+            onDismiss = onDismissRename,
         )
     }
 
@@ -150,14 +193,13 @@ fun FilterRow(
             usedAccounts = filters.filterIndexed { i, _ -> i != changeIndex }.map { it.account },
             onConfirm = {
                 onChangeCategory(changeIndex, it)
-                changeIndex = -1
+                onDismissChange()
             },
-            onDismiss = { changeIndex = -1 },
+            onDismiss = onDismissChange,
         )
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FilterChipItem(
     label: String,
@@ -169,7 +211,34 @@ private fun FilterChipItem(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val style = filterChipStyle(mode)
 
+    Box(modifier = modifier) {
+        FilterChipSurface(
+            style = style,
+            label = label,
+            onToggle = onToggle,
+            onLongClick = { menuExpanded = true },
+        )
+        FilterChipMenu(
+            expanded = menuExpanded,
+            onDismiss = { menuExpanded = false },
+            onRename = onRename,
+            onChangeCategory = onChangeCategory,
+            onDelete = onDelete,
+        )
+    }
+}
+
+private class FilterChipStyle(
+    val containerColor: Color,
+    val contentColor: Color,
+    val leadingIcon: ImageVector?,
+    val stateLabel: String,
+)
+
+@Composable
+private fun filterChipStyle(mode: FilterMode): FilterChipStyle {
     val containerColor = when (mode) {
         FilterMode.INCLUDE -> FilterAddGreen
         FilterMode.EXCLUDE -> MaterialTheme.colorScheme.errorContainer
@@ -190,76 +259,99 @@ private fun FilterChipItem(
         FilterMode.EXCLUDE -> stringResource(R.string.filter_state_exclude)
         FilterMode.OFF -> stringResource(R.string.filter_state_off)
     }
+    return FilterChipStyle(
+        containerColor = containerColor,
+        contentColor = contentColor,
+        leadingIcon = leadingIcon,
+        stateLabel = stateLabel,
+    )
+}
 
-    Box(modifier = modifier) {
-        Surface(
-            shape = RoundedCornerShape(percent = 50),
-            color = containerColor,
-            contentColor = contentColor,
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FilterChipSurface(
+    style: FilterChipStyle,
+    label: String,
+    onToggle: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = style.containerColor,
+        contentColor = style.contentColor,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .semantics { stateDescription = style.stateLabel }
+            .combinedClickable(
+                onClick = onToggle,
+                onLongClick = onLongClick,
+            ),
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 40.dp)
-                .semantics { stateDescription = stateLabel }
-                .combinedClickable(
-                    onClick = onToggle,
-                    onLongClick = { menuExpanded = true },
-                ),
+                .wrapContentHeight(Alignment.CenterVertically)
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (leadingIcon != null) {
-                    Icon(
-                        leadingIcon,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                }
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            if (style.leadingIcon != null) {
+                Icon(
+                    style.leadingIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
                 )
+                Spacer(Modifier.width(4.dp))
             }
-        }
-        DropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.filter_menu_rename)) },
-                onClick = {
-                    menuExpanded = false
-                    onRename()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.filter_menu_change)) },
-                onClick = {
-                    menuExpanded = false
-                    onChangeCategory()
-                },
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        stringResource(R.string.filter_menu_delete),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                },
-                onClick = {
-                    menuExpanded = false
-                    onDelete()
-                },
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun FilterChipMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onChangeCategory: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+    ) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.filter_menu_rename)) },
+            onClick = {
+                onDismiss()
+                onRename()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.filter_menu_change)) },
+            onClick = {
+                onDismiss()
+                onChangeCategory()
+            },
+        )
+        DropdownMenuItem(
+            text = {
+                Text(
+                    stringResource(R.string.filter_menu_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            },
+            onClick = {
+                onDismiss()
+                onDelete()
+            },
+        )
     }
 }
 
@@ -292,39 +384,13 @@ private fun AccountFilterDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text(stringResource(R.string.filter_account_label)) },
-                    singleLine = true,
-                    supportingText = if (supportingText != null) {
-                        { Text(supportingText) }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (suggestions.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp)
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        suggestions.forEach { suggestion ->
-                            Text(
-                                text = suggestion,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { query = suggestion }
-                                    .padding(vertical = 8.dp),
-                            )
-                        }
-                    }
-                }
-            }
+            AccountFilterContent(
+                query = query,
+                onQueryChange = { query = it },
+                supportingText = supportingText,
+                suggestions = suggestions,
+                onSuggestionClick = { query = it },
+            )
         },
         confirmButton = {
             TextButton(
@@ -339,6 +405,54 @@ private fun AccountFilterDialog(
                 Text(stringResource(R.string.cancel))
             }
         },
+    )
+}
+
+@Composable
+private fun AccountFilterContent(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    supportingText: String?,
+    suggestions: List<String>,
+    onSuggestionClick: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = { Text(stringResource(R.string.filter_account_label)) },
+            singleLine = true,
+            supportingText = if (supportingText != null) {
+                { Text(supportingText) }
+            } else {
+                null
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (suggestions.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 200.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                suggestions.forEach { suggestion ->
+                    AccountSuggestionItem(suggestion) { onSuggestionClick(suggestion) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountSuggestionItem(suggestion: String, onClick: () -> Unit) {
+    Text(
+        text = suggestion,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
     )
 }
 

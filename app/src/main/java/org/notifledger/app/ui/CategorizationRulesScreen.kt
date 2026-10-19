@@ -37,11 +37,11 @@ import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategorizationRulesScreen(
-    viewModel: MainViewModel,
+    viewModel: CategorizationRulesViewModel,
     onBack: () -> Unit,
 ) {
     val rules by viewModel.categorizationRules.collectAsState()
-    val accountSuggestions by viewModel.existingAccounts.collectAsState()
+    val accountSuggestions by viewModel.accountSuggestions.collectAsState()
     var showAddForm by remember { mutableStateOf(false) }
     var editingIndex by remember { mutableStateOf(-1) }
     var deletingIndex by remember { mutableStateOf(-1) }
@@ -54,106 +54,189 @@ fun CategorizationRulesScreen(
             )
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-            if (!showAddForm) {
-                OutlinedButton(onClick = { showAddForm = true }) {
-                    Text(stringResource(R.string.add_rule))
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            if (showAddForm || editingIndex >= 0) {
-                val editingRule = if (editingIndex >= 0 && editingIndex < rules.size) rules[editingIndex] else null
-                CategorizationRuleForm(
-                    initial = editingRule,
-                    accountSuggestions = accountSuggestions,
-                    onSave = { rule ->
-                        val updated = viewModel.getCachedCategorizationRules().toMutableList()
-                        if (editingRule != null && editingIndex in updated.indices) {
-                            updated[editingIndex] = rule
-                        } else {
-                            updated.add(rule)
-                        }
-                        viewModel.saveCategorizationRules(updated)
-                        showAddForm = false
-                        editingIndex = -1
-                    },
-                    onCancel = {
-                        showAddForm = false
-                        editingIndex = -1
-                    },
+        RulesContent(
+            rules = rules,
+            accountSuggestions = accountSuggestions,
+            showAddForm = showAddForm,
+            editingIndex = editingIndex,
+            onAddClick = { showAddForm = true },
+            onSave = { rule ->
+                viewModel.saveCategorizationRules(
+                    upsertRule(viewModel.getCachedCategorizationRules(), rules, rule, editingIndex),
                 )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            if (rules.isEmpty() && !showAddForm) {
-                Text(stringResource(R.string.no_rules_hint))
-            }
-
-            LazyColumn {
-                itemsIndexed(rules) { index, rule ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp)) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (rule.match.isBlank())
-                                        stringResource(R.string.rule_default_label)
-                                    else rule.match,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    text = stringResource(R.string.rule_account_arrow, rule.account),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                            TextButton(onClick = {
-                                editingIndex = index
-                                showAddForm = false
-                            }) {
-                                Text(stringResource(R.string.edit))
-                            }
-                            TextButton(onClick = { deletingIndex = index }) {
-                                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+                showAddForm = false
+                editingIndex = -1
+            },
+            onCancel = {
+                showAddForm = false
+                editingIndex = -1
+            },
+            onEdit = { index ->
+                editingIndex = index
+                showAddForm = false
+            },
+            onDelete = { index -> deletingIndex = index },
+            modifier = Modifier.padding(padding),
+        )
     }
 
     if (deletingIndex in rules.indices) {
-        AlertDialog(
-            onDismissRequest = { deletingIndex = -1 },
-            title = { Text(stringResource(R.string.delete)) },
-            text = { Text(stringResource(R.string.rules_delete_confirm)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val updated = viewModel.getCachedCategorizationRules().toMutableList()
-                    if (deletingIndex in updated.indices) {
-                        updated.removeAt(deletingIndex)
-                        viewModel.saveCategorizationRules(updated)
-                    }
-                    deletingIndex = -1
-                }) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+        DeleteRuleDialog(
+            onConfirm = {
+                removeRuleAt(viewModel.getCachedCategorizationRules(), deletingIndex)?.let {
+                    viewModel.saveCategorizationRules(it)
                 }
+                deletingIndex = -1
             },
-            dismissButton = {
-                TextButton(onClick = { deletingIndex = -1 }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            onDismiss = { deletingIndex = -1 },
         )
     }
+}
+
+private fun upsertRule(
+    cached: List<CategorizationRule>,
+    displayed: List<CategorizationRule>,
+    rule: CategorizationRule,
+    editingIndex: Int,
+): List<CategorizationRule> {
+    val updated = cached.toMutableList()
+    val editingExisting = editingIndex in displayed.indices && editingIndex in updated.indices
+    if (editingExisting) updated[editingIndex] = rule else updated.add(rule)
+    return updated
+}
+
+private fun removeRuleAt(
+    rules: List<CategorizationRule>,
+    index: Int,
+): List<CategorizationRule>? {
+    if (index !in rules.indices) return null
+    return rules.toMutableList().apply { removeAt(index) }
+}
+
+@Composable
+private fun RulesContent(
+    rules: List<CategorizationRule>,
+    accountSuggestions: List<String>,
+    showAddForm: Boolean,
+    editingIndex: Int,
+    onAddClick: () -> Unit,
+    onSave: (CategorizationRule) -> Unit,
+    onCancel: () -> Unit,
+    onEdit: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.padding(16.dp)) {
+        if (!showAddForm) {
+            OutlinedButton(onClick = onAddClick) {
+                Text(stringResource(R.string.add_rule))
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        RuleFormSection(
+            rules = rules,
+            accountSuggestions = accountSuggestions,
+            showAddForm = showAddForm,
+            editingIndex = editingIndex,
+            onSave = onSave,
+            onCancel = onCancel,
+        )
+
+        if (rules.isEmpty() && !showAddForm) {
+            Text(stringResource(R.string.no_rules_hint))
+        }
+
+        LazyColumn {
+            itemsIndexed(rules) { index, rule ->
+                RuleCard(
+                    rule = rule,
+                    onEdit = { onEdit(index) },
+                    onDelete = { onDelete(index) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuleFormSection(
+    rules: List<CategorizationRule>,
+    accountSuggestions: List<String>,
+    showAddForm: Boolean,
+    editingIndex: Int,
+    onSave: (CategorizationRule) -> Unit,
+    onCancel: () -> Unit,
+) {
+    if (!showAddForm && editingIndex < 0) return
+    val editingRule = if (editingIndex in rules.indices) rules[editingIndex] else null
+    CategorizationRuleForm(
+        initial = editingRule,
+        accountSuggestions = accountSuggestions,
+        onSave = onSave,
+        onCancel = onCancel,
+    )
+    Spacer(Modifier.height(12.dp))
+}
+
+@Composable
+private fun RuleCard(
+    rule: CategorizationRule,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Row(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (rule.match.isBlank())
+                        stringResource(R.string.rule_default_label)
+                    else rule.match,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = stringResource(R.string.rule_account_arrow, rule.account),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            TextButton(onClick = onEdit) {
+                Text(stringResource(R.string.edit))
+            }
+            TextButton(onClick = onDelete) {
+                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeleteRuleDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.delete)) },
+        text = { Text(stringResource(R.string.rules_delete_confirm)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 @Composable

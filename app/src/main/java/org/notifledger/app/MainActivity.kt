@@ -15,9 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
-import org.notifledger.app.ui.MainViewModel
 import org.notifledger.app.ui.NotifLedgerNavGraph
 import org.notifledger.app.ui.NotifLedgerTheme
 
@@ -49,11 +47,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val navController = rememberNavController()
-                    val viewModel: MainViewModel = viewModel()
-                    NotifLedgerNavGraph(
-                        navController = navController,
-                        viewModel = viewModel,
-                    )
+                    NotifLedgerNavGraph(navController = navController)
                 }
             }
         }

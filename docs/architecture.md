@@ -13,14 +13,15 @@ flowchart TB
     end
 
     subgraph app["NotifLedger (single process)"]
-        application["NotifLedgerApp<br/>Application: settings, rules cache"]
+        application["NotifLedgerApp<br/>Application: settings, rules cache, JournalSession"]
         listener["NotifListener<br/>NotificationListenerService"]
         handler["NotificationHandler<br/>allowlist check + categorization"]
-        parser["ParserEngine<br/>first parseable number = amount (body first, title fallback)"]
+        parser["ParserEngine<br/>currency-adjacent number = amount,<br/>masks/dates skipped (body first, title fallback)"]
         helper["NotificationHelper<br/>persistent listening status notification"]
         dedup["NotificationDedup<br/>processed notification ids"]
         activity["MainActivity<br/>Compose + NavHost"]
-        vm["MainViewModel<br/>all UI state"]
+        vm["per-screen ViewModels<br/>Main / QuickAdd / Logs / Settings / ..."]
+        session["JournalSession<br/>shared parsed entries + isLoading"]
         repo["JournalRepository<br/>single journal I/O point:<br/>mutex + Dispatchers.IO + backup"]
         writer["JournalWriter<br/>pure text: format / readAll / replace / delete"]
     end
@@ -28,7 +29,7 @@ flowchart TB
     subgraph storage["Storage"]
         journal["hledger journal file<br/>content:// URI via SAF"]
         datastore["DataStore Preferences<br/>journal path, accounts, sources, sort, page size"]
-        files["App-internal filesDir<br/>rules/categorization.yaml<br/>filters/filters.yaml<br/>logs/notifledger.log<br/>journal_backup.txt"]
+        files["App-internal filesDir<br/>rules/categorization.yaml<br/>filters/filters.yaml<br/>logs/notifledger.log<br/>backups/journal_backup_&lt;ts&gt;.txt"]
     end
 
     bank --> framework --> listener
@@ -38,23 +39,26 @@ flowchart TB
     vm --> repo
     repo --> writer
     repo -->|read + write via ContentResolver| journal
-    listener -->|runBlocking reads| application
+    listener -->|suspend reads| application
     application --> datastore
     application -->|loads rules at startup| files
 
     activity --> vm
+    vm --> session
+    session --> repo
     vm --> datastore
     vm -->|rules + filters YAML| files
     listener -.->|posts status notification| helper
 ```
 
 No DI framework and no database: `NotifLedgerApp` constructs `SettingsManager`,
-the notification path reads settings from it synchronously (`runBlocking`), and
+the notification path reads settings from it through suspend getters, and
 the only durable stores are the journal file, DataStore, and a few YAML/log
-files. Both the listener and the ViewModel reach the journal only through
+files. Both the listener and the UI ViewModels reach the journal only through
 `JournalRepository`, which serializes every read-modify-write with its own
-mutex, runs the ContentResolver work on `Dispatchers.IO`, and keeps a
-`journal_backup.txt` recovery copy before each write.
+mutex, runs the ContentResolver work on `Dispatchers.IO`, and keeps the newest
+10 timestamped `backups/journal_backup_<ts>.txt` recovery copies from before
+each write.
 
 ## 2. Notification capture flow (automatic path)
 
@@ -132,10 +136,11 @@ Notes:
 sequenceDiagram
     participant U as User
     participant QA as QuickAddScreen
-    participant VM as MainViewModel
+    participant VM as QuickAddViewModel
     participant R as JournalRepository
     participant J as JournalWriter (pure)
     participant SAF as Journal file (SAF)
+    participant S as JournalSession
 
     U->>QA: amount, payee, account (pre-filled default)
     QA->>VM: addTransaction(tx)
@@ -145,7 +150,7 @@ sequenceDiagram
     R->>SAF: backup + write content
     R-->>VM: JournalWriteResult
     VM-->>QA: emitMessage("Saved" / "Save failed — see Logs")
-    VM->>VM: _allEntries updated
+    VM->>S: apply(result.entries)
 ```
 
 Manual and notification transactions produce the same `Transaction` type and
@@ -158,7 +163,7 @@ produced them. The ViewModel no longer touches `ContentResolver` directly:
 ```mermaid
 flowchart LR
     subgraph sources["State sources"]
-        entries["_allEntries<br/>(journal file content parsed<br/>by JournalWriter.readAll)"]
+        entries["JournalSession.entries<br/>(journal file content parsed<br/>by JournalWriter.readAll)"]
         sort["_sortOrder<br/>from DataStore"]
         limit["_pageLimit<br/>from DataStore"]
         filters["_filters<br/>from filters.yaml"]
@@ -198,6 +203,7 @@ sequenceDiagram
     participant R as JournalRepository
     participant J as JournalWriter (pure)
     participant SAF as Journal file (SAF)
+    participant S as JournalSession
 
     UI->>VM: editTransaction(offset, tx) / deleteTransaction(offset)
     VM->>R: replace(path, offset, tx) / delete(path, offset)
@@ -205,7 +211,7 @@ sequenceDiagram
     Note over J: uses lineOffset from the parsed JournalEntry
     R->>SAF: backup + write content
     R-->>VM: JournalWriteResult
-    VM->>VM: _allEntries = result.entries<br/>(lineOffsets re-derived)
+    VM->>S: apply(result.entries)<br/>(lineOffsets re-derived)
     VM-->>UI: message + refreshed list
 
     UI->>VM: changeTransactions(offsets, date, payee, currency, account)
@@ -291,6 +297,7 @@ flowchart LR
     Sources["NotificationSources<br/>allowlisted apps"]
     Logs["Logs<br/>in-app AppLogger feed"]
     Settings["Settings<br/>journal path, accounts, currency"]
+    Stats["Statistics<br/>totals + charts"]
 
     Main --> QuickAdd
     Main --> RawJournal
@@ -298,10 +305,12 @@ flowchart LR
     Main --> Sources
     Main --> Logs
     Main --> Settings
+    Main --> Stats
 ```
 
-Routes are defined in `Screen.kt`; `MainViewModel` is the single shared
-ViewModel across all destinations (`NotifLedgerNavGraph.kt`).
+Routes are defined in `Screen.kt`; each destination gets its own ViewModel
+via `viewModel()` in `NotifLedgerNavGraph.kt`. Journal entries are shared
+through `JournalSession`, owned by `NotifLedgerApp`.
 
 ## 8. Where state lives
 
@@ -319,11 +328,13 @@ flowchart TB
         rules["rules/categorization.yaml<br/>SnakeYAML, ordered rules"]
         filt["filters/filters.yaml<br/>SnakeYAML, label/account/mode"]
         logs["logs/notifledger.log<br/>AppLogger"]
-        backup["journal_backup.txt<br/>pre-write recovery copy"]
+        backup["backups/journal_backup_&lt;ts&gt;.txt<br/>pre-write recovery copies (newest 10)"]
     end
 ```
 
 - Journal = the only source of truth for transactions (no Room, no cache).
+- `JournalSession` holds the parsed entries in memory for the process lifetime
+  (rebuilt on refresh/after writes); the journal file stays the source of truth.
 - Rules are cached in `NotifLedgerApp` at process start for the listener path;
   the UI reloads them from disk.
 - Dedup state lives in DataStore so listener reconnects don't duplicate

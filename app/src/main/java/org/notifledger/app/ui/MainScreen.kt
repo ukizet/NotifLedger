@@ -2,11 +2,13 @@ package org.notifledger.app.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,7 +44,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +60,6 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.X
-import kotlinx.coroutines.launch
 import org.notifledger.app.R
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.model.SortOrder
@@ -79,62 +79,46 @@ fun MainScreen(
     viewModel: MainViewModel,
     navController: NavController,
     onNavigateToQuickAdd: () -> Unit,
-    onNavigateToRawJournal: () -> Unit,
-    onNavigateToCategorizationRules: () -> Unit,
     onNavigateToNotificationSources: () -> Unit,
-    onNavigateToLogs: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
     val entryPage by viewModel.entryPage.collectAsState()
     val entries = entryPage.entries
-    val hasEntries by viewModel.hasEntries.collectAsState()
-    val journalPath by viewModel.journalPath.collectAsState()
-    val notificationSources by viewModel.notificationSources.collectAsState()
-    val payeeSuggestions by viewModel.existingPayees.collectAsState()
-    val accountSuggestions by viewModel.existingAccounts.collectAsState()
-    val defaultCurrency by viewModel.defaultCurrency.collectAsState()
-    val defaultAccount by viewModel.defaultAccount.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val uiMessage by viewModel.uiMessage.collectAsState()
-    val context = LocalContext.current
-    val isListening = rememberListenerEnabled(context)
-    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    val pickFileLauncher = rememberJournalPicker(viewModel)
 
-    LaunchedEffect(uiMessage) {
-        uiMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.consumeMessage()
-        }
-    }
+    MainSnackbarEffect(viewModel = viewModel, snackbarHostState = snackbarHostState)
+    LaunchedEffect(entryPage.page) { listState.scrollToItem(0) }
+    ReloadEntriesOnResume(viewModel)
 
-    LaunchedEffect(entryPage.page) {
-        listState.scrollToItem(0)
-    }
+    MainScaffold(
+        viewModel = viewModel,
+        navController = navController,
+        snackbarHostState = snackbarHostState,
+        onNavigateToQuickAdd = onNavigateToQuickAdd,
+        onNavigateToSettings = onNavigateToSettings,
+        onNavigateToNotificationSources = onNavigateToNotificationSources,
+        entries = entries,
+        entryPage = entryPage,
+        listState = listState,
+        onPickFile = { pickFileLauncher.launch(arrayOf("*/*")) },
+    )
+}
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.reloadEntries()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val pickFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let {
-            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(it, flags)
-            scope.launch {
-                viewModel.settings.setJournalPath(it.toString())
-            }
-        }
-    }
-
+@Composable
+private fun MainScaffold(
+    viewModel: MainViewModel,
+    navController: NavController,
+    snackbarHostState: SnackbarHostState,
+    onNavigateToQuickAdd: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToNotificationSources: () -> Unit,
+    entries: List<JournalEntry>,
+    entryPage: EntryPage,
+    listState: LazyListState,
+    onPickFile: () -> Unit,
+) {
     var editingIndex by remember { mutableStateOf(-1) }
     var showSimulateDialog by remember { mutableStateOf(false) }
     var selectedOffsets by remember { mutableStateOf(setOf<Int>()) }
@@ -145,106 +129,47 @@ fun MainScreen(
         if (editingIndex >= entries.size) editingIndex = -1
     }
 
-    val onboardingItems = listOf(
-        OnboardingItem(
-            label = stringResource(R.string.onboarding_pick_journal),
-            done = journalPath.isNotBlank(),
-            onClick = { pickFileLauncher.launch(arrayOf("*/*")) },
-        ),
-        OnboardingItem(
-            label = stringResource(R.string.onboarding_grant_access),
-            done = isListening,
-            onClick = onNavigateToSettings,
-        ),
-        OnboardingItem(
-            label = stringResource(R.string.onboarding_add_source),
-            done = notificationSources.isNotEmpty(),
-            onClick = onNavigateToNotificationSources,
-        ),
-        OnboardingItem(
-            label = stringResource(R.string.onboarding_set_account),
-            done = defaultAccount.isNotBlank(),
-            onClick = onNavigateToSettings,
-        ),
-    )
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            MainBottomBar(navController = navController, onSimulate = { showSimulateDialog = true })
-        },
+        bottomBar = { MainBottomBar(navController = navController, onSimulate = { showSimulateDialog = true }) },
         floatingActionButton = {
             FloatingActionButton(onClick = onNavigateToQuickAdd) {
                 Icon(Lucide.Plus, contentDescription = stringResource(R.string.quick_add))
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            OnboardingChecklist(
-                items = onboardingItems,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-            MainContent(
-                journalPath = journalPath,
-                hasEntries = hasEntries,
-                isLoading = isLoading,
-                onPickFile = { pickFileLauncher.launch(arrayOf("*/*")) },
-                viewModel = viewModel,
-                entries = entries,
-                entryPage = entryPage,
-                listState = listState,
-                selectedOffsets = selectedOffsets,
-                onSelectedOffsetsChange = { selectedOffsets = it },
-                onEdit = { editingIndex = it },
-                onShowBulkChange = { showBulkChange = true },
-            )
-        }
-    }
-
-    if (showBulkChange) {
-        BulkChangeDialog(
-            accountSuggestions = accountSuggestions,
-            onConfirm = { date, payee, currency, account ->
-                viewModel.changeTransactions(selectedOffsets, date, payee, currency, account)
-                selectedOffsets = emptySet()
-                showBulkChange = false
-            },
-            onDismiss = { showBulkChange = false },
-        )
-    }
-
-    if (showSimulateDialog) {
-        SimulateNotificationDialog(
+        MainColumn(
+            padding = padding,
             viewModel = viewModel,
-            onDismiss = {
-                showSimulateDialog = false
-                viewModel.reloadEntries()
-            },
+            entries = entries,
+            entryPage = entryPage,
+            listState = listState,
+            selectedOffsets = selectedOffsets,
+            onSelectedOffsetsChange = { selectedOffsets = it },
+            onEdit = { editingIndex = it },
+            onShowBulkChange = { showBulkChange = true },
+            onPickFile = onPickFile,
+            onNavigateToSettings = onNavigateToSettings,
+            onNavigateToNotificationSources = onNavigateToNotificationSources,
         )
     }
-
-    if (editingIndex >= 0 && editingIndex < entries.size) {
-        val entry = entries[editingIndex]
-        EditTransactionDialog(
-            entry = entry,
-            payeeSuggestions = payeeSuggestions,
-            accountSuggestions = accountSuggestions,
-            defaultCurrency = defaultCurrency,
-            onSave = { updated ->
-                viewModel.editTransaction(entry.lineOffset, updated)
-                editingIndex = -1
-            },
-            onDismiss = { editingIndex = -1 },
-        )
-    }
+    MainDialogs(
+        viewModel = viewModel,
+        entries = entries,
+        editingIndex = editingIndex,
+        showBulkChange = showBulkChange,
+        showSimulateDialog = showSimulateDialog,
+        selectedOffsets = selectedOffsets,
+        onClearSelection = { selectedOffsets = emptySet() },
+        onDismissBulkChange = { showBulkChange = false },
+        onDismissSimulate = { showSimulateDialog = false },
+        onDismissEdit = { editingIndex = -1 },
+    )
 }
 
 @Composable
-private fun MainContent(
-    journalPath: String,
-    hasEntries: Boolean,
-    isLoading: Boolean,
-    onPickFile: () -> Unit,
+private fun MainColumn(
+    padding: PaddingValues,
     viewModel: MainViewModel,
     entries: List<JournalEntry>,
     entryPage: EntryPage,
@@ -253,7 +178,86 @@ private fun MainContent(
     onSelectedOffsetsChange: (Set<Int>) -> Unit,
     onEdit: (Int) -> Unit,
     onShowBulkChange: () -> Unit,
+    onPickFile: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToNotificationSources: () -> Unit,
 ) {
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        MainOnboarding(
+            viewModel = viewModel,
+            onPickFile = onPickFile,
+            onNavigateToSettings = onNavigateToSettings,
+            onNavigateToNotificationSources = onNavigateToNotificationSources,
+        )
+        MainContent(
+            viewModel = viewModel,
+            entries = entries,
+            entryPage = entryPage,
+            listState = listState,
+            selectedOffsets = selectedOffsets,
+            onSelectedOffsetsChange = onSelectedOffsetsChange,
+            onEdit = onEdit,
+            onShowBulkChange = onShowBulkChange,
+            onPickFile = onPickFile,
+        )
+    }
+}
+
+@Composable
+private fun MainOnboarding(
+    viewModel: MainViewModel,
+    onPickFile: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToNotificationSources: () -> Unit,
+) {
+    val journalPath by viewModel.journalPath.collectAsState()
+    val notificationSources by viewModel.notificationSources.collectAsState()
+    val defaultAccount by viewModel.defaultAccount.collectAsState()
+    val isListening = rememberListenerEnabled(LocalContext.current)
+
+    OnboardingChecklist(
+        items = listOf(
+            OnboardingItem(
+                label = stringResource(R.string.onboarding_pick_journal),
+                done = journalPath.isNotBlank(),
+                onClick = onPickFile,
+            ),
+            OnboardingItem(
+                label = stringResource(R.string.onboarding_grant_access),
+                done = isListening,
+                onClick = onNavigateToSettings,
+            ),
+            OnboardingItem(
+                label = stringResource(R.string.onboarding_add_source),
+                done = notificationSources.isNotEmpty(),
+                onClick = onNavigateToNotificationSources,
+            ),
+            OnboardingItem(
+                label = stringResource(R.string.onboarding_set_account),
+                done = defaultAccount.isNotBlank(),
+                onClick = onNavigateToSettings,
+            ),
+        ),
+        modifier = Modifier.padding(top = 12.dp),
+    )
+}
+
+@Composable
+private fun MainContent(
+    viewModel: MainViewModel,
+    entries: List<JournalEntry>,
+    entryPage: EntryPage,
+    listState: LazyListState,
+    selectedOffsets: Set<Int>,
+    onSelectedOffsetsChange: (Set<Int>) -> Unit,
+    onEdit: (Int) -> Unit,
+    onShowBulkChange: () -> Unit,
+    onPickFile: () -> Unit,
+) {
+    val journalPath by viewModel.journalPath.collectAsState()
+    val hasEntries by viewModel.hasEntries.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
     when {
         journalPath.isBlank() -> NoJournalContent(onPickFile)
         !hasEntries -> EmptyJournalContent(isLoading)
@@ -333,51 +337,89 @@ private fun JournalContent(
         )
 
         if (selectedOffsets.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.bulk_selected_count, selectedOffsets.size),
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onShowBulkChange) {
-                    Text(stringResource(R.string.bulk_change_title))
-                }
-                IconButton(onClick = { onSelectedOffsetsChange(emptySet()) }) {
-                    Icon(Lucide.X, contentDescription = stringResource(R.string.cancel))
-                }
-            }
+            SelectionBar(
+                selectedCount = selectedOffsets.size,
+                onShowBulkChange = onShowBulkChange,
+                onClearSelection = { onSelectedOffsetsChange(emptySet()) },
+            )
         }
 
-        if (entries.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(stringResource(R.string.no_matching_transactions))
-            }
-        } else {
-            TransactionList(
-                entries = entries,
-                listState = listState,
-                selectedOffsets = selectedOffsets,
-                onSelectedOffsetsChange = onSelectedOffsetsChange,
-                onEdit = onEdit,
-                onDelete = viewModel::deleteTransaction,
-                modifier = Modifier.fillMaxWidth().weight(1f),
-            )
-            TransactionPager(
-                page = entryPage.page,
-                pageCount = entryPage.pageCount,
-                onPrevious = viewModel::previousPage,
-                onNext = viewModel::nextPage,
-            )
+        TransactionPane(
+            viewModel = viewModel,
+            entries = entries,
+            entryPage = entryPage,
+            listState = listState,
+            selectedOffsets = selectedOffsets,
+            onSelectedOffsetsChange = onSelectedOffsetsChange,
+            onEdit = onEdit,
+        )
+    }
+}
+
+@Composable
+private fun SelectionBar(
+    selectedCount: Int,
+    onShowBulkChange: () -> Unit,
+    onClearSelection: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.bulk_selected_count, selectedCount),
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onShowBulkChange) {
+            Text(stringResource(R.string.bulk_change_title))
+        }
+        IconButton(onClick = onClearSelection) {
+            Icon(Lucide.X, contentDescription = stringResource(R.string.cancel))
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ColumnScope.TransactionPane(
+    viewModel: MainViewModel,
+    entries: List<JournalEntry>,
+    entryPage: EntryPage,
+    listState: LazyListState,
+    selectedOffsets: Set<Int>,
+    onSelectedOffsetsChange: (Set<Int>) -> Unit,
+    onEdit: (Int) -> Unit,
+) {
+    if (entries.isEmpty()) {
+        NoMatchingContent()
+    } else {
+        TransactionList(
+            entries = entries,
+            listState = listState,
+            selectedOffsets = selectedOffsets,
+            onSelectedOffsetsChange = onSelectedOffsetsChange,
+            onEdit = onEdit,
+            onDelete = viewModel::deleteTransaction,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+        )
+        TransactionPager(
+            page = entryPage.page,
+            pageCount = entryPage.pageCount,
+            onPrevious = viewModel::previousPage,
+            onNext = viewModel::nextPage,
+        )
+    }
+}
+
+@Composable
+private fun NoMatchingContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(stringResource(R.string.no_matching_transactions))
+    }
+}
+
 @Composable
 private fun SortControls(
     sortOrder: SortOrder,
@@ -390,72 +432,94 @@ private fun SortControls(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        var sortExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(
-            expanded = sortExpanded,
-            onExpandedChange = { sortExpanded = it },
+        SortOrderDropdown(
+            sortOrder = sortOrder,
+            onSortOrderChange = onSortOrderChange,
             modifier = Modifier.weight(1f),
-        ) {
-            OutlinedTextField(
-                value = sortLabel(sortOrder),
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sortExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                textStyle = MaterialTheme.typography.bodySmall,
-            )
-            ExposedDropdownMenu(
-                expanded = sortExpanded,
-                onDismissRequest = { sortExpanded = false },
-            ) {
-                SortOrder.entries.forEach { order ->
-                    DropdownMenuItem(
-                        text = { Text(sortLabel(order)) },
-                        onClick = {
-                            onSortOrderChange(order)
-                            sortExpanded = false
-                        },
-                    )
-                }
-            }
-        }
+        )
+        PageSizeEditor(pageLimit = pageLimit, onPageLimitChange = onPageLimitChange)
+    }
+}
 
-        var editingLimit by remember { mutableStateOf(false) }
-        var limitInput by remember { mutableStateOf("") }
-        if (editingLimit) {
-            OutlinedTextField(
-                value = limitInput,
-                onValueChange = { limitInput = it.filter(Char::isDigit) },
-                label = { Text(stringResource(R.string.page_size)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.width(120.dp),
-                textStyle = MaterialTheme.typography.bodySmall,
-            )
-            TextButton(
-                onClick = {
-                    val parsed = limitInput.toIntOrNull()
-                    if (parsed != null && parsed > 0) {
-                        onPageLimitChange(parsed)
-                        editingLimit = false
-                    }
-                },
-            ) {
-                Text(stringResource(R.string.done), style = MaterialTheme.typography.bodySmall)
-            }
-        } else {
-            OutlinedButton(
-                onClick = {
-                    limitInput = pageLimit.toString()
-                    editingLimit = true
-                },
-            ) {
-                Text(
-                    stringResource(R.string.page_per_page, pageLimit),
-                    style = MaterialTheme.typography.bodySmall,
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortOrderDropdown(
+    sortOrder: SortOrder,
+    onSortOrderChange: (SortOrder) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = sortLabel(sortOrder),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+            textStyle = MaterialTheme.typography.bodySmall,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            SortOrder.entries.forEach { order ->
+                DropdownMenuItem(
+                    text = { Text(sortLabel(order)) },
+                    onClick = {
+                        onSortOrderChange(order)
+                        expanded = false
+                    },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun PageSizeEditor(
+    pageLimit: Int,
+    onPageLimitChange: (Int) -> Unit,
+) {
+    var editingLimit by remember { mutableStateOf(false) }
+    var limitInput by remember { mutableStateOf("") }
+
+    if (editingLimit) {
+        OutlinedTextField(
+            value = limitInput,
+            onValueChange = { limitInput = it.filter(Char::isDigit) },
+            label = { Text(stringResource(R.string.page_size)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.width(120.dp),
+            textStyle = MaterialTheme.typography.bodySmall,
+        )
+        TextButton(
+            onClick = {
+                val parsed = limitInput.toIntOrNull()
+                if (parsed != null && parsed > 0) {
+                    onPageLimitChange(parsed)
+                    editingLimit = false
+                }
+            },
+        ) {
+            Text(stringResource(R.string.done), style = MaterialTheme.typography.bodySmall)
+        }
+    } else {
+        OutlinedButton(
+            onClick = {
+                limitInput = pageLimit.toString()
+                editingLimit = true
+            },
+        ) {
+            Text(
+                stringResource(R.string.page_per_page, pageLimit),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
@@ -483,13 +547,7 @@ private fun TransactionList(
                     if (selectedOffsets.isEmpty()) {
                         onEdit(index)
                     } else {
-                        onSelectedOffsetsChange(
-                            if (entry.lineOffset in selectedOffsets) {
-                                selectedOffsets - entry.lineOffset
-                            } else {
-                                selectedOffsets + entry.lineOffset
-                            },
-                        )
+                        onSelectedOffsetsChange(toggleSelection(selectedOffsets, entry.lineOffset))
                     }
                 },
                 onLongClick = { onSelectedOffsetsChange(selectedOffsets + entry.lineOffset) },
@@ -500,6 +558,9 @@ private fun TransactionList(
         }
     }
 }
+
+private fun toggleSelection(selectedOffsets: Set<Int>, lineOffset: Int): Set<Int> =
+    if (lineOffset in selectedOffsets) selectedOffsets - lineOffset else selectedOffsets + lineOffset
 
 @Composable
 private fun TransactionPager(
@@ -561,6 +622,100 @@ private fun EditTransactionDialog(
         },
         confirmButton = {},
     )
+}
+
+@Composable
+private fun MainDialogs(
+    viewModel: MainViewModel,
+    entries: List<JournalEntry>,
+    editingIndex: Int,
+    showBulkChange: Boolean,
+    showSimulateDialog: Boolean,
+    selectedOffsets: Set<Int>,
+    onClearSelection: () -> Unit,
+    onDismissBulkChange: () -> Unit,
+    onDismissSimulate: () -> Unit,
+    onDismissEdit: () -> Unit,
+) {
+    val payeeSuggestions by viewModel.existingPayees.collectAsState()
+    val accountSuggestions by viewModel.existingAccounts.collectAsState()
+    val defaultCurrency by viewModel.defaultCurrency.collectAsState()
+
+    if (showBulkChange) {
+        BulkChangeDialog(
+            accountSuggestions = accountSuggestions,
+            onConfirm = { date, payee, currency, account ->
+                viewModel.changeTransactions(selectedOffsets, date, payee, currency, account)
+                onClearSelection()
+                onDismissBulkChange()
+            },
+            onDismiss = onDismissBulkChange,
+        )
+    }
+
+    if (showSimulateDialog) {
+        SimulateNotificationDialog(
+            viewModel = viewModel,
+            onDismiss = {
+                onDismissSimulate()
+                viewModel.reloadEntries()
+            },
+        )
+    }
+
+    if (editingIndex >= 0 && editingIndex < entries.size) {
+        val entry = entries[editingIndex]
+        EditTransactionDialog(
+            entry = entry,
+            payeeSuggestions = payeeSuggestions,
+            accountSuggestions = accountSuggestions,
+            defaultCurrency = defaultCurrency,
+            onSave = { updated ->
+                viewModel.editTransaction(entry.lineOffset, updated)
+                onDismissEdit()
+            },
+            onDismiss = onDismissEdit,
+        )
+    }
+}
+
+@Composable
+private fun MainSnackbarEffect(
+    viewModel: MainViewModel,
+    snackbarHostState: SnackbarHostState,
+) {
+    val uiMessage by viewModel.uiMessage.collectAsState()
+    LaunchedEffect(uiMessage) {
+        uiMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeMessage()
+        }
+    }
+}
+
+@Composable
+private fun ReloadEntriesOnResume(viewModel: MainViewModel) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.reloadEntries()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+@Composable
+private fun rememberJournalPicker(viewModel: MainViewModel): ManagedActivityResultLauncher<Array<String>, Uri?> {
+    val context = LocalContext.current
+    return rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context.contentResolver.takePersistableUriPermission(it, flags)
+            viewModel.setJournalPath(it.toString())
+        }
+    }
 }
 
 @Composable
