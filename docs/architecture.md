@@ -173,7 +173,7 @@ flowchart LR
     combine["combine() in MainViewModel"]
     visible["EntryList.visible()<br/>1. FilterMatcher include/exclude<br/>2. sort<br/>3. paginate → EntryPage"]
 
-    subgraph screen["MainScreen"]
+    subgraph screen["Main screen UI"]
         list["LazyColumn of TransactionRow"]
         pager["page footer (prev / Page X of Y / next)"]
         chips["FilterRow chips<br/>tap cycles INCLUDE → EXCLUDE → OFF"]
@@ -311,6 +311,12 @@ flowchart LR
 Routes are defined in `Screen.kt`; each destination gets its own ViewModel
 via `viewModel()` in `NotifLedgerNavGraph.kt`. Journal entries are shared
 through `JournalSession`, owned by `NotifLedgerApp`.
+
+The Main screen is split by concern across four files: `MainScreen.kt`
+(scaffold, onboarding, snackbar effect, journal picker), `MainTransactionSection.kt`
+(filter chips, selection bar, transaction list, pager), `MainSortControls.kt`
+(sort + page size controls), and `MainDialogs.kt` (edit, bulk change, and
+simulate dialog hosts).
 
 ## 8. Where state lives
 
