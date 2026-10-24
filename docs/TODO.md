@@ -3,6 +3,10 @@
 Living doc for the 7-finding code review (2026-10-18). Source review findings
 were pasted in-session; this file is the tracking copy across sessions.
 
+Instruction content that used to live in `docs/design.md` and
+`docs/coding_standarts.md` now lives in `AGENTS.md`; references to those files
+below are historical.
+
 **Status: complete (2026-10-18).** All four workstreams landed; QA, CodeReviewer
 and PerformanceProfiler passes done; reviewer follow-ups applied and re-verified.
 Do not start a fix without updating the checkbox in the same session.
@@ -201,16 +205,9 @@ Targets: no composable over ~1 screen, ≤3 nesting levels.
   `simulateNotification` read-failure message now says "Save failed" ("see
   Logs" remains the actionable part).
 
-## Deliberately skipped (do not "fix" without a new instruction)
+## Deliberately skipped
 
-- `MainViewModel.simulateNotification` bypasses categorization rules and
-  hardcodes `expenses:unknown`; `NotificationHandler.DEFAULT_EXPENSE_ACCOUNT`
-  stays separate — same duplication class but outside the named findings.
-- No read-back verification after SAF writes; backup can degrade if the user
-  keeps writing after a failed write.
-- Parser stays a number heuristic — no per-bank config (design §8).
-- Repository pure text transforms run on `Dispatchers.IO` (reviewer low-note);
-  fine at current journal sizes — revisit if multi-MB journals appear.
+Moved to `AGENTS.md` ("Deliberately skipped (accepted residuals)") — see that file.
 
 ---
 

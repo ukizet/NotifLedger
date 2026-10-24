@@ -1,7 +1,7 @@
 # NotifLedger — Codebase Diagrams
 
-Mermaid maps of how the app works. For the *why* behind the design, read
-[design.md](design.md); for code rules, [coding_standarts.md](coding_standarts.md).
+Mermaid maps of how the app works. For the *why* behind the design and the code rules,
+read [AGENTS.md](../AGENTS.md).
 
 ## 1. Component overview
 

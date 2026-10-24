@@ -1,7 +1,10 @@
 # AGENTS.md
 
-Guidance for OpenCode sessions working in this repo. Read `docs/design.md` before
-changing core flow — many "obvious improvements" are explicit non-goals (see §8).
+Guidance for OpenCode sessions working in this repo. This file is the single source
+of truth for build commands, conventions, design invariants, and non-goals. Read the
+"Design invariants" and "Non-goals" sections before changing core flow — many
+"obvious improvements" are explicit non-goals. `docs/architecture.md` holds the
+diagrams; `docs/TODO.md` is a historical review log, not instructions.
 
 ## Reference: NanoLedger
 
@@ -100,7 +103,7 @@ journal entries automatically. Core stance: if a bank told you it happened, don'
 the human confirm it.
 
 - **No DI framework.** Manual construction in `NotifLedgerApp` (the `Application`).
-  Don't introduce Hilt/Koin — it's an explicit non-goal (design.md §8).
+  Don't introduce Hilt/Koin — it's an explicit non-goal (see Non-goals).
 - **No Room / database.** State lives in the hledger journal file (via Storage Access
   Framework `content://` URIs) and app settings in DataStore Preferences. Don't add a
   DB "to cache things" — that's a non-goal.
@@ -113,9 +116,68 @@ the human confirm it.
   marker (`kr`, `NOK`, `€`, …), skips card masks (`*1234`) and dates, falls
   back to the first parseable number in the body, then the title; title =
   payee. Norwegian comma decimals (`184,50`) handled. Do **not** add per-bank
-  parser config — explicit non-goal (design.md §8).
+  parser config — explicit non-goal (see Non-goals).
 - KSP plugin is declared in root `build.gradle.kts` but **not applied in `:app`** (no
   Room/Hilt/Moshi). Don't assume KSP annotations work without applying the plugin.
+
+## Design invariants
+
+The journal file is plain text, append-only, diffable and git-friendly. Nothing in the
+app may compromise that: the journal file (SAF `content://` URI) is the only source of
+truth for transactions, settings live in DataStore, and there is no cache/DB in between.
+Two paths write the same journal, immediately, with no approval step:
+
+- **Notification path:** capture (allowlist) → generic parse → categorization rules →
+  default payment account fills the money leg → append. A parse with no number still
+  posts best-effort (title as payee, empty amount auto-balanced) — never gated, never
+  dropped. Mistakes are fixed after the fact on the main list.
+- **Manual path (quick-add):** amount, payee, account (pre-filled from the default
+  payment account, overridable); currency/date default to now/base currency. Manual and
+  notification entries are the same `Transaction` type and indistinguishable once
+  written.
+
+Consequences worth keeping:
+
+- Filter capture by a **user-selected package allowlist** — never global capture. Store
+  only what parsing needs (title, text, package, timestamp); raw notification text is
+  never logged or persisted.
+- The **default payment account** is a per-entry starting value, not a hard constraint.
+  Changing it in Settings affects new entries only, never past ones.
+- **Categorization rules** are an ordered YAML list, first regex match wins, fallback
+  `expenses:unknown`. The listener uses a cache loaded at process start, so rule edits
+  apply to the next notification after the app process restarts.
+- **Backups** (the one deliberate exception to "no in-app copy"): a timestamped
+  `backups/journal_backup_<ts>.txt` is written before each journal overwrite, newest 10
+  kept, excluded from Android cloud backup and device transfer, and only ever consulted
+  by hand — never merged back automatically.
+- The **raw journal screen is read-only**; edits go through the main list (or an
+  external editor), so the app needs no raw-hledger text-editing UI.
+- Low-confidence parsing still beats a confirmation gate: accepting easy-to-find,
+  easy-to-fix mistakes is the point, not a bug to close with a review step.
+
+## Non-goals
+
+Don't "fix" these; they are deliberate. A change needs a new explicit instruction.
+
+- No bank API / Open Banking — notifications only, to avoid credential/OAuth surface.
+- No cloud backend — sync is whatever the user already uses for the journal file.
+- No auto-categorization via ML — rule-based stays legible and debuggable.
+- No per-bank parser rules — the generic heuristic above is enough.
+- No DI framework (Hilt/Koin) — manual construction in `NotifLedgerApp`.
+- No Room/database or cache layer — journal file + DataStore only.
+
+## Deliberately skipped (accepted residuals)
+
+From the completed review rounds in `docs/TODO.md`; don't reopen without a new instruction:
+
+- `MainViewModel.simulateNotification` bypasses categorization rules and hardcodes
+  `expenses:unknown`; `NotificationHandler.DEFAULT_EXPENSE_ACCOUNT` stays separate.
+- No read-back verification after SAF writes; backups can degrade if the user keeps
+  writing after a failed write.
+- Repository text transforms run on `Dispatchers.IO` — fine at current journal sizes;
+  revisit if multi-MB journals appear.
+- `Channel.UNLIMITED` in the listener (correctness over bounded memory at this app's
+  event rates) and a backup write on every overwrite (deliberate recovery point).
 
 ## Notification flow
 
@@ -129,28 +191,67 @@ the human confirm it.
 - `NotificationHelper.showListeningNotification` posts a persistent foreground-style
   notification on startup — required to keep the listener alive, don't remove it.
 
-## Style conventions (repo-specific)
+## Coding standards
 
-Source of truth: `docs/coding_standarts.md`. Points that diverge from defaults:
+Simple beats clever, always. If a reviewer has to pause and think "wait, what does this
+do", rewrite it — even if it works. Code is read far more often than written; optimize
+for the next reader, including future you. These rules are the source of truth.
 
-- **Simple beats clever.** Write the dumbest version that works; no abstraction
-  layers/factories until 3+ concrete cases need it. Don't build for hypothetical futures.
-- **One function, one action.** If you describe it with "and", split it. Max ~3 levels
-  of nesting; extract the inner logic.
-- **Comments explain *why*, never *what*.** If the *what* isn't obvious, rewrite the
-  code — don't caption it. Delete commented-out code.
-- **Feature-based package structure**, not type-based: `parser/`, `journal/`,
+**One function, one action, one thing**
+
+- A function does exactly one thing. If you describe it with "and", split it.
+- A function fits on one screen; prefer many small named functions over one large
+  function with comments marking "sections".
+- Max ~3 levels of nesting (if inside if inside loop) — extract the inner logic or
+  invert the condition.
+- Max 1000 lines per file. No file should require scrolling to understand its purpose.
+
+**Simple beats clever**
+
+- Write the dumbest version that works; optimize measured, not guessed.
+- No abstraction layers, factories, or indirection until 3+ concrete cases need them.
+  Don't build for a future that might not come.
+- Prefer explicit over implicit; magic (metaprogramming, hidden side effects, global
+  mutable state) is a last resort.
+- If you can delete code and nothing breaks, delete it.
+
+**Naming**
+
+- Names say what a thing *is* or *does*, not how it's implemented.
+- No abbreviations unless universally obvious (`id`, `url`, `i` in a tight loop).
+- Booleans read like yes/no questions (`isActive`, `hasPermission`, `canRetry`);
+  functions are verbs (`sendEmail`), values are nouns (`emailAddress`).
+
+**Functions & data**
+
+- Pure functions by default: same input, same output, no hidden state mutation. Side
+  effects (I/O, network, writes) live in clearly named, isolated functions — never
+  buried in "helper" logic.
+- Don't mutate arguments; return new values.
+- Prefer a few explicit parameters over a giant options object.
+
+**Comments**
+
+- Comments explain *why*, never *what*. If the *what* isn't obvious, rewrite the code —
+  don't caption it. Delete commented-out code; that's what git history is for.
+
+**Errors**
+
+- Fail loudly and early. No silent catches that swallow errors. (Note:
+  `NotifLedgerApp` catches-and-defaults in a few blocks — deliberate boundary
+  fallbacks, not a pattern to spread.)
+- Handle errors at the boundary where you have enough context to act; no
+  catch-and-rethrow for no reason.
+
+**Structure**
+
+- Feature-based package structure, not type-based: `parser/`, `journal/`,
   `notification/`, `ui/`, `model/` — group by what code *does*, not by
   `controllers/`/`models/`/`views/`.
-- **Fail loudly and early.** No silent catches that swallow errors. (Note:
-  `NotifLedgerApp` does catch-and-default in a few `runBlocking` blocks — those are
-  deliberate boundary fallbacks, not a pattern to spread.)
-- No file should require scrolling to understand its purpose. Optimize for the next
-  reader, including future you.
+- Code grows vertically (more functions, more files), not horizontally (more nesting,
+  more indentation).
 
 ## Before opening a PR
-
-From `docs/coding_standarts.md`:
 
 1. Could someone unfamiliar with this code understand it in one read?
 2. Does every function do exactly one thing?
