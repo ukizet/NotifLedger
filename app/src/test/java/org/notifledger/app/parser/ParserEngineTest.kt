@@ -306,6 +306,18 @@ class ParserEngineTest {
     }
 
     @Test
+    fun `amount with trailing decimal mark is normalized`() {
+        val result = ParserEngine.parse(
+            title = "Betalt",
+            text = "Betalt 184,-",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184", result!!.postings[0].amount)
+    }
+
+    @Test
     fun `amount with dot as thousand separator is not parsable`() {
         val result = ParserEngine.parse(
             title = "Overføring",

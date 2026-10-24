@@ -32,6 +32,7 @@
     <string name="date_invalid">Enter a date as YYYY-MM-DD</string>
     <string name="form_postings_title">Postings</string>
     <string name="form_amount_placeholder">auto</string>
+    <string name="form_invalid_amount">Enter a number, e.g. 184.50</string>
     <string name="form_add_posting">Add posting</string>
     <string name="form_note_hint">Note (optional)</string>
     <string name="form_show_details">Show details</string>

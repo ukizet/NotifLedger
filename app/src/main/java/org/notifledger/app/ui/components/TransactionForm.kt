@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.R
+import org.notifledger.app.journal.JournalWriter
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Transaction
 import java.time.LocalDate
@@ -144,7 +145,7 @@ private class TransactionFormState(
 
     val paymentUnbalanced: Boolean
         get() {
-            val manualValue = paymentManual.replace(",", ".").toDoubleOrNull()
+            val manualValue = JournalWriter.normalizeAmount(paymentManual)?.toDoubleOrNull()
             return !paymentAuto && (manualValue == null || abs(amountTotal + manualValue) > 1e-9)
         }
 
@@ -152,7 +153,7 @@ private class TransactionFormState(
         get() = runCatching { LocalDate.parse(date) }.isSuccess
 
     fun canSave(defaultPaymentAccount: String?): Boolean =
-        dateValid && (
+        dateValid && amountsValid && (
             defaultPaymentAccount == null ||
                 (paymentAccountValue.isNotBlank() && hasAnyAmount && !paymentUnbalanced)
             )
@@ -171,7 +172,7 @@ private class TransactionFormState(
         val resolvedPostings = postings.map { it.copy(currency = currency) }.toMutableList()
         if (defaultPaymentAccount != null) {
             val resolvedPaymentAmount =
-                if (paymentAuto) formattedAuto else paymentManual.replace(",", ".")
+                if (paymentAuto) formattedAuto else (JournalWriter.normalizeAmount(paymentManual) ?: formattedAuto)
             resolvedPostings.add(
                 Posting(
                     account = paymentAccountValue,
@@ -192,7 +193,12 @@ private class TransactionFormState(
     private val amountTotal: Double
         get() = postings
             .filter { it.amount.isNotBlank() }
-            .sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
+            .sumOf { JournalWriter.normalizeAmount(it.amount)?.toDoubleOrNull() ?: 0.0 }
+
+    private val amountsValid: Boolean
+        get() = postings.all {
+            it.amount.isBlank() || JournalWriter.normalizeAmount(it.amount) != null
+        }
 
     private val hasAnyAmount: Boolean
         get() = postings.any { it.amount.isNotBlank() }
@@ -287,6 +293,8 @@ private fun PostingRow(
     onAmountChange: (String) -> Unit,
     onRemove: () -> Unit,
 ) {
+    val amountInvalid =
+        posting.amount.isNotBlank() && JournalWriter.normalizeAmount(posting.amount) == null
     Column(modifier = Modifier.fillMaxWidth()) {
         AccountField(
             value = posting.account,
@@ -306,6 +314,12 @@ private fun PostingRow(
                 label = { Text(stringResource(R.string.amount)) },
                 placeholder = { Text(stringResource(R.string.form_amount_placeholder)) },
                 singleLine = true,
+                isError = amountInvalid,
+                supportingText = if (amountInvalid) {
+                    { Text(stringResource(R.string.form_invalid_amount)) }
+                } else {
+                    null
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f),
             )

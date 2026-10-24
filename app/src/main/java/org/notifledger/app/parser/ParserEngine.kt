@@ -96,8 +96,9 @@ object ParserEngine {
      * when it actually parses as a Double.
      */
     private fun parseableAmount(matched: String): String? {
-        val cleaned = matched.replace(",", ".").replace(" ", "")
-        return if (cleaned.toDoubleOrNull() == null) null else cleaned
+        // "184,-" and "184." must not be written as an amount hledger can't read back
+        val cleaned = matched.replace(",", ".").replace(" ", "").trimEnd('.')
+        return if (cleaned.isEmpty() || cleaned.toDoubleOrNull() == null) null else cleaned
     }
 
     private fun isNextToCurrency(text: String, match: MatchResult): Boolean {

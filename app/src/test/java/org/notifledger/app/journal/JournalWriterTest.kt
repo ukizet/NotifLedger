@@ -1,6 +1,7 @@
 package org.notifledger.app.journal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.notifledger.app.model.Posting
 import org.notifledger.app.model.Transaction
@@ -125,7 +126,53 @@ class JournalWriterTest {
             ),
         )
         val result = JournalWriter.format(tx)
+        assertEquals(true, result.contains("184.50 NOK"))
         assertEquals(true, result.contains("-184.50 NOK"))
+        assertEquals(false, result.contains("184,50"))
+    }
+
+    @Test
+    fun `format normalizes comma decimals in every posting`() {
+        val tx = Transaction(
+            date = "2026-07-12",
+            payee = "Rema 1000",
+            postings = listOf(
+                Posting("expenses:groceries", "184,50", "NOK"),
+                Posting("assets:bank:checking", "-184,50", "NOK"),
+            ),
+        )
+        val result = JournalWriter.format(tx)
+        assertEquals(true, result.contains("184.50 NOK"))
+        assertEquals(true, result.contains("-184.50 NOK"))
+        assertEquals(false, result.contains("184,50"))
+    }
+
+    @Test
+    fun `normalizeAmount accepts plain numbers and comma decimals, rejects junk`() {
+        assertEquals("184.50", JournalWriter.normalizeAmount("184,50"))
+        assertEquals("184.50", JournalWriter.normalizeAmount(" 184.50 "))
+        assertEquals("-10.00", JournalWriter.normalizeAmount("-10.00"))
+        assertNull(JournalWriter.normalizeAmount(""))
+        assertNull(JournalWriter.normalizeAmount("abc"))
+        assertNull(JournalWriter.normalizeAmount("12,3,4"))
+    }
+
+    @Test
+    fun `format keeps two spaces before amount for long account names`() {
+        val longAccount = "expenses:" + "a".repeat(30)
+        val tx = Transaction(
+            date = "2026-07-12",
+            payee = "Rema 1000",
+            postings = listOf(
+                Posting(longAccount, "10.00", "NOK"),
+                Posting("assets:bank:checking", "-10.00", "NOK"),
+            ),
+        )
+        val entry = JournalWriter.format(tx)
+        val parsed = JournalWriter.readAll(entry)
+        assertEquals(1, parsed.size)
+        assertEquals(longAccount, parsed[0].postings[0].account)
+        assertEquals("10.00", parsed[0].postings[0].amount)
     }
 
     @Test
@@ -206,6 +253,18 @@ class JournalWriterTest {
         val entries = JournalWriter.readAll(content)
         assertEquals("12.50", entries[0].postings[0].amount)
         assertEquals("", entries[0].postings[0].currency)
+    }
+
+    @Test
+    fun `readAll parses grouped amounts with both separators`() {
+        val content = """
+            |2026-07-12 Rema 1000
+            |    expenses:groceries              1,234.56 NOK
+            |    expenses:snack                  1.234,56 NOK
+        """.trimMargin()
+        val entries = JournalWriter.readAll(content)
+        assertEquals("1234.56", entries[0].postings[0].amount)
+        assertEquals("1234.56", entries[0].postings[1].amount)
     }
 
     @Test
