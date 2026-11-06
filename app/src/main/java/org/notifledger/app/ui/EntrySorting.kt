@@ -1,42 +1,71 @@
 package org.notifledger.app.ui
 
 import org.notifledger.app.journal.JournalEntry
+import org.notifledger.app.model.SortColumn
 import org.notifledger.app.model.SortDirection
 import org.notifledger.app.model.SortOrder
 
 object EntrySorting {
 
-    fun sorted(entries: List<JournalEntry>, order: SortOrder): List<JournalEntry> = when (order) {
-        SortOrder.NewestFirst -> entries.sortedByDescending { it.date }
-        SortOrder.OldestFirst -> entries.sortedBy { it.date }
-        SortOrder.HighestAmount -> entries.sortedByDescending { postedAmount(it) }
-        SortOrder.LowestAmount -> entries.sortedBy { postedAmount(it) }
-        SortOrder.PayeeAscending -> byText(entries, order, JournalEntry::payee)
-        SortOrder.PayeeDescending -> byText(entries, order, JournalEntry::payee)
-        SortOrder.AccountAscending -> byText(entries, order, ::firstAccount)
-        SortOrder.AccountDescending -> byText(entries, order, ::firstAccount)
-        SortOrder.CurrencyAscending -> byText(entries, order, ::firstCurrency)
-        SortOrder.CurrencyDescending -> byText(entries, order, ::firstCurrency)
-    }
+    fun sorted(entries: List<JournalEntry>, order: SortOrder): List<JournalEntry> =
+        entries.sortedWith(comparator(order))
 
     /**
-     * The ascending order the table header uses for a column, and whether that
-     * column currently holds the sort.
+     * The one ascending comparator per column: text is case-insensitive and
+     * ties break by newest date first. Descending is that comparator reversed,
+     * so both directions read the same tie rule.
      */
-    fun indicator(ascending: SortOrder, current: SortOrder): SortDirection? =
-        if (current == ascending || current == descending(ascending)) current.direction else null
+    private fun comparator(order: SortOrder): Comparator<JournalEntry> {
+        val ascending = when (order) {
+            SortOrder.NewestFirst, SortOrder.OldestFirst ->
+                compareBy<JournalEntry> { it.date }
 
-    /** Tapping a column header sorts ascending, or flips to descending when it already sorts that column. */
-    fun toggle(ascending: SortOrder, current: SortOrder): SortOrder =
-        if (current == ascending) descending(ascending) else ascending
+            SortOrder.HighestAmount, SortOrder.LowestAmount ->
+                compareBy<JournalEntry> { postedAmount(it) }
 
-    private fun descending(ascending: SortOrder): SortOrder = when (ascending) {
+            SortOrder.PayeeAscending, SortOrder.PayeeDescending ->
+                textColumn(JournalEntry::payee)
+
+            SortOrder.AccountAscending, SortOrder.AccountDescending ->
+                textColumn(::firstAccount)
+
+            SortOrder.CurrencyAscending, SortOrder.CurrencyDescending ->
+                textColumn(::firstCurrency)
+        }
+        return if (order.direction == SortDirection.Ascending) ascending else ascending.reversed()
+    }
+
+    private fun textColumn(value: (JournalEntry) -> String): Comparator<JournalEntry> =
+        compareBy<JournalEntry> { value(it).lowercase() }.thenByDescending { it.date }
+
+    /** Tapping a column header sorts ascending, or flips direction when it already sorts that column. */
+    fun toggle(column: SortColumn, current: SortOrder): SortOrder =
+        if (current.column != column) ascending(column) else opposite(current)
+
+    /** Which way a column header should point, or null when that column is not the sort. */
+    fun indicator(column: SortColumn, current: SortOrder): SortDirection? =
+        if (current.column == column) current.direction else null
+
+    /** The direction A-Z / oldest-first / lowest-first, i.e. the header's first tap. */
+    private fun ascending(column: SortColumn): SortOrder = when (column) {
+        SortColumn.Date -> SortOrder.OldestFirst
+        SortColumn.Payee -> SortOrder.PayeeAscending
+        SortColumn.Account -> SortOrder.AccountAscending
+        SortColumn.Amount -> SortOrder.LowestAmount
+        SortColumn.Currency -> SortOrder.CurrencyAscending
+    }
+
+    private fun opposite(order: SortOrder): SortOrder = when (order) {
+        SortOrder.NewestFirst -> SortOrder.OldestFirst
         SortOrder.OldestFirst -> SortOrder.NewestFirst
-        SortOrder.PayeeAscending -> SortOrder.PayeeDescending
-        SortOrder.AccountAscending -> SortOrder.AccountDescending
-        SortOrder.CurrencyAscending -> SortOrder.CurrencyDescending
+        SortOrder.HighestAmount -> SortOrder.LowestAmount
         SortOrder.LowestAmount -> SortOrder.HighestAmount
-        else -> ascending
+        SortOrder.PayeeAscending -> SortOrder.PayeeDescending
+        SortOrder.PayeeDescending -> SortOrder.PayeeAscending
+        SortOrder.AccountAscending -> SortOrder.AccountDescending
+        SortOrder.AccountDescending -> SortOrder.AccountAscending
+        SortOrder.CurrencyAscending -> SortOrder.CurrencyDescending
+        SortOrder.CurrencyDescending -> SortOrder.CurrencyAscending
     }
 
     /** The first posting's amount as a number; blank (auto-balanced) counts as zero. */
@@ -48,19 +77,4 @@ object EntrySorting {
     fun firstAccount(entry: JournalEntry): String = entry.postings.firstOrNull()?.account ?: ""
 
     fun firstCurrency(entry: JournalEntry): String = entry.postings.firstOrNull()?.currency ?: ""
-
-    /** Text columns sort case-insensitively and break ties by newest date first. */
-    private fun byText(
-        entries: List<JournalEntry>,
-        order: SortOrder,
-        value: (JournalEntry) -> String,
-    ): List<JournalEntry> {
-        val byValue = compareBy<JournalEntry> { value(it).lowercase() }
-        val comparator = if (order.direction == SortDirection.Ascending) {
-            byValue.thenByDescending { it.date }
-        } else {
-            byValue.reversed().thenByDescending { it.date }
-        }
-        return entries.sortedWith(comparator)
-    }
 }

@@ -44,6 +44,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Trash2
 import org.notifledger.app.R
 import org.notifledger.app.journal.JournalEntry
+import org.notifledger.app.model.SortColumn
 import org.notifledger.app.model.SortDirection
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.ui.EntrySorting
@@ -58,8 +59,18 @@ private val currencyWidth = 64.dp
 private val deleteWidth = 48.dp
 private val cellPadding = 8.dp
 
+private fun columnWidth(column: SortColumn): Dp = when (column) {
+    SortColumn.Date -> dateWidth
+    SortColumn.Payee -> payeeWidth
+    SortColumn.Account -> accountWidth
+    SortColumn.Amount -> amountWidth
+    SortColumn.Currency -> currencyWidth
+}
+
 /** The columns plus the delete gutter; header, dividers, and rows all use it. */
-private val tableWidth = dateWidth + payeeWidth + accountWidth + amountWidth + currencyWidth + deleteWidth
+private val tableWidth: Dp = SortColumn.entries
+    .map { columnWidth(it) }
+    .fold(deleteWidth) { total, width -> total + width }
 
 /**
  * Column view of the journal: one row per transaction, one sortable header per
@@ -116,65 +127,41 @@ private fun TableHeader(
         modifier = Modifier.width(tableWidth).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HeaderCell(
-            label = stringResource(R.string.column_date),
-            width = dateWidth,
-            order = SortOrder.OldestFirst,
-            sortOrder = sortOrder,
-            onSortOrderChange = onSortOrderChange,
-        )
-        HeaderCell(
-            label = stringResource(R.string.column_payee),
-            width = payeeWidth,
-            order = SortOrder.PayeeAscending,
-            sortOrder = sortOrder,
-            onSortOrderChange = onSortOrderChange,
-        )
-        HeaderCell(
-            label = stringResource(R.string.column_account),
-            width = accountWidth,
-            order = SortOrder.AccountAscending,
-            sortOrder = sortOrder,
-            onSortOrderChange = onSortOrderChange,
-        )
-        HeaderCell(
-            label = stringResource(R.string.column_amount),
-            width = amountWidth,
-            order = SortOrder.LowestAmount,
-            sortOrder = sortOrder,
-            onSortOrderChange = onSortOrderChange,
-            isAmount = true,
-        )
-        HeaderCell(
-            label = stringResource(R.string.column_currency),
-            width = currencyWidth,
-            order = SortOrder.CurrencyAscending,
-            sortOrder = sortOrder,
-            onSortOrderChange = onSortOrderChange,
-        )
+        SortColumn.entries.forEach { column ->
+            HeaderCell(
+                column = column,
+                sortOrder = sortOrder,
+                onSortOrderChange = onSortOrderChange,
+            )
+        }
         Spacer(modifier = Modifier.width(deleteWidth))
     }
+}
+
+private fun columnLabel(column: SortColumn): Int = when (column) {
+    SortColumn.Date -> R.string.column_date
+    SortColumn.Payee -> R.string.column_payee
+    SortColumn.Account -> R.string.column_account
+    SortColumn.Amount -> R.string.column_amount
+    SortColumn.Currency -> R.string.column_currency
 }
 
 /** A tappable column heading; tapping sorts by that column, tapping again flips direction. */
 @Composable
 private fun HeaderCell(
-    label: String,
-    width: Dp,
-    order: SortOrder,
+    column: SortColumn,
     sortOrder: SortOrder,
     onSortOrderChange: (SortOrder) -> Unit,
-    isAmount: Boolean = false,
 ) {
     TextButton(
-        onClick = { onSortOrderChange(EntrySorting.toggle(order, sortOrder)) },
+        onClick = { onSortOrderChange(EntrySorting.toggle(column, sortOrder)) },
         contentPadding = PaddingValues(horizontal = cellPadding),
-        modifier = Modifier.width(width),
+        modifier = Modifier.width(columnWidth(column)),
     ) {
         LabelWithSortIndicator(
-            label = label,
-            direction = EntrySorting.indicator(order, sortOrder),
-            alignEnd = isAmount,
+            label = stringResource(columnLabel(column)),
+            direction = EntrySorting.indicator(column, sortOrder),
+            alignEnd = column.isAmount,
         )
     }
 }
@@ -213,7 +200,6 @@ private fun TransactionTableRow(
     onDelete: () -> Unit,
 ) {
     val deleteLabel = stringResource(R.string.delete)
-    val background = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Row(
@@ -237,29 +223,29 @@ private fun TransactionTableRow(
             TableCell(
                 text = remember(entry.date) { formatDisplayDate(entry.date) },
                 width = dateWidth,
-                background = background,
+                selected = selected,
             )
             TableCell(
                 text = entry.payee,
                 width = payeeWidth,
-                background = background,
+                selected = selected,
                 weight = FontWeight.Medium,
             )
             TableCell(
                 text = EntrySorting.firstAccount(entry),
                 width = accountWidth,
-                background = background,
+                selected = selected,
             )
             TableCell(
                 text = EntrySorting.firstAmount(entry),
                 width = amountWidth,
-                background = background,
+                selected = selected,
                 alignEnd = true,
             )
             TableCell(
                 text = EntrySorting.firstCurrency(entry),
                 width = currencyWidth,
-                background = background,
+                selected = selected,
             )
         }
         Box(modifier = Modifier.width(deleteWidth), contentAlignment = Alignment.Center) {
@@ -274,14 +260,16 @@ private fun TransactionTableRow(
     }
 }
 
+/** One cell; the row's selection colour is painted here so it covers every column. */
 @Composable
 private fun TableCell(
     text: String,
     width: Dp,
-    background: Color,
+    selected: Boolean,
     weight: FontWeight = FontWeight.Normal,
     alignEnd: Boolean = false,
 ) {
+    val background = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
     Box(
         modifier = Modifier
             .width(width)

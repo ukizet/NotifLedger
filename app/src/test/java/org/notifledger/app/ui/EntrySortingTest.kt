@@ -5,6 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.notifledger.app.journal.JournalEntry
 import org.notifledger.app.model.Posting
+import org.notifledger.app.model.SortColumn
 import org.notifledger.app.model.SortDirection
 import org.notifledger.app.model.SortOrder
 
@@ -103,48 +104,69 @@ class EntrySortingTest {
     }
 
     @Test
-    fun `indicator marks the column that currently sorts`() {
+    fun `indicator marks only the column that currently sorts`() {
         assertEquals(
             SortDirection.Ascending,
-            EntrySorting.indicator(SortOrder.PayeeAscending, SortOrder.PayeeAscending),
+            EntrySorting.indicator(SortColumn.Payee, SortOrder.PayeeAscending),
         )
         assertEquals(
             SortDirection.Descending,
-            EntrySorting.indicator(SortOrder.PayeeAscending, SortOrder.PayeeDescending),
+            EntrySorting.indicator(SortColumn.Payee, SortOrder.PayeeDescending),
         )
-        assertNull(EntrySorting.indicator(SortOrder.PayeeAscending, SortOrder.AccountAscending))
+        assertNull(EntrySorting.indicator(SortColumn.Payee, SortOrder.AccountAscending))
+        assertNull(EntrySorting.indicator(SortColumn.Account, SortOrder.PayeeDescending))
     }
 
     @Test
     fun `indicator covers every sortable column`() {
-        val columns = listOf(
-            SortOrder.OldestFirst,
-            SortOrder.PayeeAscending,
-            SortOrder.AccountAscending,
-            SortOrder.LowestAmount,
-            SortOrder.CurrencyAscending,
-        )
-        columns.forEach { column ->
-            assertEquals(SortDirection.Ascending, EntrySorting.indicator(column, column))
-            val flipped = EntrySorting.toggle(column, column)
-            assertEquals(SortDirection.Descending, EntrySorting.indicator(column, flipped))
-            assertEquals(column, EntrySorting.toggle(column, flipped))
+        SortColumn.entries.forEach { column ->
+            val ascending = ascending(column)
+            val descending = EntrySorting.toggle(column, ascending)
+            assertEquals(SortDirection.Ascending, EntrySorting.indicator(column, ascending))
+            assertEquals(SortDirection.Descending, EntrySorting.indicator(column, descending))
+            assertEquals(ascending, EntrySorting.toggle(column, descending))
         }
     }
 
     @Test
-    fun `tapping another column starts ascending`() {
+    fun `every sort column has one ascending and one descending order`() {
+        SortColumn.entries.forEach { column ->
+            val orders = SortOrder.entries.filter { it.column == column }
+            assertEquals(2, orders.size)
+            assertEquals(1, orders.count { it.direction == SortDirection.Ascending })
+            assertEquals(1, orders.count { it.direction == SortDirection.Descending })
+        }
+    }
+
+    @Test
+    fun `tapping a column that does not sort starts ascending`() {
         assertEquals(
             SortOrder.AccountAscending,
-            EntrySorting.toggle(SortOrder.AccountAscending, SortOrder.NewestFirst),
+            EntrySorting.toggle(SortColumn.Account, SortOrder.NewestFirst),
+        )
+        assertEquals(
+            SortOrder.PayeeAscending,
+            EntrySorting.toggle(SortColumn.Payee, SortOrder.PayeeDescending),
         )
     }
 
     @Test
     fun `date column toggles between newest and oldest`() {
-        assertEquals(SortOrder.NewestFirst, EntrySorting.toggle(SortOrder.OldestFirst, SortOrder.OldestFirst))
-        assertEquals(SortOrder.OldestFirst, EntrySorting.toggle(SortOrder.OldestFirst, SortOrder.NewestFirst))
+        assertEquals(SortOrder.NewestFirst, EntrySorting.toggle(SortColumn.Date, SortOrder.OldestFirst))
+        assertEquals(SortOrder.OldestFirst, EntrySorting.toggle(SortColumn.Date, SortOrder.NewestFirst))
+        assertEquals(SortOrder.OldestFirst, EntrySorting.toggle(SortColumn.Date, SortOrder.PayeeAscending))
     }
+
+    @Test
+    fun `every sort order round-trips through its stored value`() {
+        SortOrder.entries.forEach { order ->
+            assertEquals(order, SortOrder.fromValue(SortOrder.toValue(order)))
+        }
+        assertEquals(SortOrder.NewestFirst, SortOrder.fromValue("nonsense"))
+    }
+
+    private fun ascending(column: SortColumn): SortOrder =
+        SortOrder.entries.first { it.column == column && it.direction == SortDirection.Ascending }
 
     private fun entry(
         date: String,

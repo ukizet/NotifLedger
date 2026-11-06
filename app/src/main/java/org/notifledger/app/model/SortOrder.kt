@@ -4,20 +4,38 @@ package org.notifledger.app.model
 enum class SortDirection { Ascending, Descending }
 
 /**
- * A sort order for the main screen. Amount orders read the first posting's
- * amount (blank counts as zero); text orders are case-insensitive.
+ * A column of the transaction table, which is the same thing as a sortable
+ * field. Amounts read the first posting's amount, text columns compare
+ * case-insensitively.
  */
-enum class SortOrder(val direction: SortDirection) {
-    NewestFirst(SortDirection.Descending),
-    OldestFirst(SortDirection.Ascending),
-    HighestAmount(SortDirection.Descending),
-    LowestAmount(SortDirection.Ascending),
-    PayeeAscending(SortDirection.Ascending),
-    PayeeDescending(SortDirection.Descending),
-    AccountAscending(SortDirection.Ascending),
-    AccountDescending(SortDirection.Descending),
-    CurrencyAscending(SortDirection.Ascending),
-    CurrencyDescending(SortDirection.Descending);
+enum class SortColumn(val isAmount: Boolean = false) {
+    Date,
+    Payee,
+    Account,
+    Amount(isAmount = true),
+    Currency,
+}
+
+/**
+ * A sort order for the main screen: one direction of one [SortColumn]. Which
+ * orders a column has, and which of them is ascending-first, lives in
+ * [EntrySorting] as compile-checked tables rather than as cross-references
+ * between enum entries.
+ */
+enum class SortOrder(
+    val column: SortColumn,
+    val direction: SortDirection,
+) {
+    NewestFirst(SortColumn.Date, SortDirection.Descending),
+    OldestFirst(SortColumn.Date, SortDirection.Ascending),
+    HighestAmount(SortColumn.Amount, SortDirection.Descending),
+    LowestAmount(SortColumn.Amount, SortDirection.Ascending),
+    PayeeAscending(SortColumn.Payee, SortDirection.Ascending),
+    PayeeDescending(SortColumn.Payee, SortDirection.Descending),
+    AccountAscending(SortColumn.Account, SortDirection.Ascending),
+    AccountDescending(SortColumn.Account, SortDirection.Descending),
+    CurrencyAscending(SortColumn.Currency, SortDirection.Ascending),
+    CurrencyDescending(SortColumn.Currency, SortDirection.Descending);
 
     companion object {
         fun fromValue(s: String): SortOrder = when (s) {
