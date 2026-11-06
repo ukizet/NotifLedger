@@ -138,4 +138,10 @@ private fun sortLabel(key: SortOrder): String = when (key) {
     SortOrder.OldestFirst -> stringResource(R.string.sort_oldest_first)
     SortOrder.HighestAmount -> stringResource(R.string.sort_highest_amount)
     SortOrder.LowestAmount -> stringResource(R.string.sort_lowest_amount)
+    SortOrder.PayeeAscending -> stringResource(R.string.sort_payee_ascending)
+    SortOrder.PayeeDescending -> stringResource(R.string.sort_payee_descending)
+    SortOrder.AccountAscending -> stringResource(R.string.sort_account_ascending)
+    SortOrder.AccountDescending -> stringResource(R.string.sort_account_descending)
+    SortOrder.CurrencyAscending -> stringResource(R.string.sort_currency_ascending)
+    SortOrder.CurrencyDescending -> stringResource(R.string.sort_currency_descending)
 }

@@ -23,12 +23,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.R
 import org.notifledger.app.journal.JournalEntry
-import org.notifledger.app.log.AppLogger
 import org.notifledger.app.model.Posting
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-
-private val dateDisplay = DateTimeFormatter.ofPattern("MMM d")
+import org.notifledger.app.ui.formatDisplayDate
 
 @Composable
 fun TransactionRow(
@@ -143,14 +139,4 @@ private fun PostingLine(posting: Posting) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 8.dp),
     )
-}
-
-private fun formatDisplayDate(raw: String): String {
-    if (raw.isBlank()) return raw
-    return try {
-        LocalDate.parse(raw).format(dateDisplay)
-    } catch (e: Exception) {
-        AppLogger.warn("TransactionRow", "Unparseable date \"$raw\": ${e.message}")
-        raw
-    }
 }

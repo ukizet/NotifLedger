@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import org.notifledger.app.NotifLedgerApp
 import org.notifledger.app.filters.FilterIO
 import org.notifledger.app.log.AppLogger
+import org.notifledger.app.model.DisplayMode
 import org.notifledger.app.model.FilterMode
 import org.notifledger.app.model.SortOrder
 import org.notifledger.app.model.Transaction
@@ -56,6 +57,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sortOrder = MutableStateFlow(SortOrder.NewestFirst)
     val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
+
+    private val _displayMode = MutableStateFlow(DisplayMode.Journal)
+    val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
     private val _pageLimit = MutableStateFlow(20)
     val pageLimit: StateFlow<Int> = _pageLimit.asStateFlow()
@@ -108,6 +112,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _pageLimit.value = settings.pageLimit.first()
             settings.pageLimit.collect { _pageLimit.value = it }
+        }
+        viewModelScope.launch {
+            _displayMode.value = DisplayMode.fromValue(settings.displayMode.first())
+            settings.displayMode.collect { _displayMode.value = DisplayMode.fromValue(it) }
         }
         viewModelScope.launch {
             settings.journalPath.distinctUntilChanged().collect { reload() }

@@ -29,8 +29,11 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.X
 import org.notifledger.app.R
 import org.notifledger.app.journal.JournalEntry
+import org.notifledger.app.model.DisplayMode
+import org.notifledger.app.model.SortOrder
 import org.notifledger.app.ui.components.FilterRow
 import org.notifledger.app.ui.components.TransactionRow
+import org.notifledger.app.ui.components.TransactionTable
 
 @Composable
 internal fun JournalContent(
@@ -48,6 +51,7 @@ internal fun JournalContent(
     val accountSuggestions by viewModel.existingAccounts.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
     val pageLimit by viewModel.pageLimit.collectAsState()
+    val displayMode by viewModel.displayMode.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         SortControls(
@@ -81,6 +85,8 @@ internal fun JournalContent(
             entries = entries,
             entryPage = entryPage,
             listState = listState,
+            displayMode = displayMode,
+            sortOrder = sortOrder,
             selectedOffsets = selectedOffsets,
             onSelectedOffsetsChange = onSelectedOffsetsChange,
             onEdit = onEdit,
@@ -117,6 +123,8 @@ private fun ColumnScope.TransactionPane(
     entries: List<JournalEntry>,
     entryPage: EntryPage,
     listState: LazyListState,
+    displayMode: DisplayMode,
+    sortOrder: SortOrder,
     selectedOffsets: Set<Int>,
     onSelectedOffsetsChange: (Set<Int>) -> Unit,
     onEdit: (Int) -> Unit,
@@ -124,15 +132,29 @@ private fun ColumnScope.TransactionPane(
     if (entries.isEmpty()) {
         NoMatchingContent()
     } else {
-        TransactionList(
-            entries = entries,
-            listState = listState,
-            selectedOffsets = selectedOffsets,
-            onSelectedOffsetsChange = onSelectedOffsetsChange,
-            onEdit = onEdit,
-            onDelete = viewModel::deleteTransaction,
-            modifier = Modifier.fillMaxWidth().weight(1f),
-        )
+        when (displayMode) {
+            DisplayMode.Journal -> TransactionList(
+                entries = entries,
+                listState = listState,
+                selectedOffsets = selectedOffsets,
+                onSelectedOffsetsChange = onSelectedOffsetsChange,
+                onEdit = onEdit,
+                onDelete = viewModel::deleteTransaction,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+
+            DisplayMode.Table -> TransactionTable(
+                entries = entries,
+                listState = listState,
+                sortOrder = sortOrder,
+                onSortOrderChange = viewModel::setSortOrder,
+                selectedOffsets = selectedOffsets,
+                onSelectedOffsetsChange = onSelectedOffsetsChange,
+                onEdit = onEdit,
+                onDelete = viewModel::deleteTransaction,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        }
         TransactionPager(
             page = entryPage.page,
             pageCount = entryPage.pageCount,
@@ -186,9 +208,6 @@ private fun TransactionList(
         }
     }
 }
-
-private fun toggleSelection(selectedOffsets: Set<Int>, lineOffset: Int): Set<Int> =
-    if (lineOffset in selectedOffsets) selectedOffsets - lineOffset else selectedOffsets + lineOffset
 
 @Composable
 private fun TransactionPager(

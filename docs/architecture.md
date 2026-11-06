@@ -165,6 +165,7 @@ flowchart LR
     subgraph sources["State sources"]
         entries["JournalSession.entries<br/>(journal file content parsed<br/>by JournalWriter.readAll)"]
         sort["_sortOrder<br/>from DataStore"]
+        mode["_displayMode<br/>journal or table, from DataStore"]
         limit["_pageLimit<br/>from DataStore"]
         filters["_filters<br/>from filters.yaml"]
         page["_page<br/>(transient, resets on<br/>sort/size/filter change)"]
@@ -174,17 +175,24 @@ flowchart LR
     visible["EntryList.visible()<br/>1. FilterMatcher include/exclude<br/>2. sort<br/>3. paginate → EntryPage"]
 
     subgraph screen["Main screen UI"]
+        mode{"display mode"}
         list["LazyColumn of TransactionRow"]
+        table["TransactionTable: header row + one row per entry<br/>tap a header to sort by that column"]
         pager["page footer (prev / Page X of Y / next)"]
         chips["FilterRow chips<br/>tap cycles INCLUDE → EXCLUDE → OFF"]
     end
 
     entries --> combine
     sort --> combine
+    mode --> combine
     limit --> combine
     filters --> combine
     page --> combine
-    combine --> visible --> list
+    combine --> visible
+    visible --> mode
+    mode -->|Journal| list
+    mode -->|Table| table
+    table -->|header tap| sort
     visible --> pager
     chips -->|cycleFilterMode| filters
     pager -->|nextPage / previousPage| page
@@ -192,7 +200,9 @@ flowchart LR
 
 `EntryList.visible` is pure: filter (include = any posting touches an included
 account, exclude = no posting touches an excluded account), sort by
-`SortOrder`, slice to one page, clamp out-of-range page numbers.
+`SortOrder` (delegated to `EntrySorting`), slice to one page, clamp
+out-of-range page numbers. The journal list and the table share that one page,
+so switching views never drops or reorders entries.
 
 ## 5. Journal edit / delete / bulk change
 
@@ -269,10 +279,16 @@ classDiagram
     }
     class SortOrder {
         <<enumeration>>
-        NewestFirst
-        OldestFirst
-        HighestAmount
-        LowestAmount
+        NewestFirst / OldestFirst
+        HighestAmount / LowestAmount
+        PayeeAscending / PayeeDescending
+        AccountAscending / AccountDescending
+        CurrencyAscending / CurrencyDescending
+    }
+    class DisplayMode {
+        <<enumeration>>
+        Journal
+        Table
     }
 
     Transaction "1" --> "*" Posting
@@ -290,7 +306,7 @@ the journal — once written, entries are indistinguishable.
 
 ```mermaid
 flowchart LR
-    Main["Main<br/>transaction list, filters,<br/>sort, pagination"]
+    Main["Main<br/>journal list or table, filters,<br/>sort, pagination"]
     QuickAdd["QuickAdd<br/>manual entry"]
     RawJournal["RawJournal<br/>read-only text view"]
     Rules["CategorizationRules<br/>payee regex → account"]
@@ -314,9 +330,16 @@ through `JournalSession`, owned by `NotifLedgerApp`.
 
 The Main screen is split by concern across four files: `MainScreen.kt`
 (scaffold, onboarding, snackbar effect, journal picker), `MainTransactionSection.kt`
-(filter chips, selection bar, transaction list, pager), `MainSortControls.kt`
+(filter chips, selection bar, list/table host, pager), `MainSortControls.kt`
 (sort + page size controls), and `MainDialogs.kt` (edit, bulk change, and
-simulate dialog hosts).
+simulate dialog hosts). `components/TransactionTable.kt` renders the table view:
+one row per entry, a header per column, and horizontal scrolling shared by the
+header and the rows so the columns stay aligned. `EntrySorting.kt` holds the
+comparators and the header tap logic, and is unit-tested without a device.
+
+Which view the Main screen shows is chosen in Settings (the Table/Journal
+switch) and stored as `display_mode` in DataStore, so both screens read the
+same setting.
 
 ## 8. Where state lives
 
@@ -327,7 +350,7 @@ flowchart TB
     end
 
     subgraph ds["DataStore Preferences (name: settings)"]
-        keys["journal_path, default_account, default_currency,<br/>notification_sources, sort_order, page_limit,<br/>filter_row_limit, processed_notification_ids"]
+        keys["journal_path, default_account, default_currency,<br/>notification_sources, sort_order, display_mode, page_limit,<br/>filter_row_limit, processed_notification_ids"]
     end
 
     subgraph internal["app filesDir (internal storage)"]
