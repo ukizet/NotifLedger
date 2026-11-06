@@ -13,6 +13,7 @@ import org.notifledger.app.model.CategorizationRule
 import org.notifledger.app.notification.NotificationHelper
 import org.notifledger.app.parser.RuleIO
 import org.notifledger.app.settings.SettingsManager
+import org.notifledger.app.settings.dataStore
 import java.io.File
 
 class NotifLedgerApp : Application() {
@@ -40,7 +41,7 @@ class NotifLedgerApp : Application() {
         AppLogger.initLogFile(File(logDir, "notifledger.log"))
         AppLogger.info("App", "Application starting")
         AppLogger.info("App", "File logging started")
-        settings = SettingsManager(this)
+        settings = SettingsManager(dataStore)
         cachedRules = loadRules()
         NotificationHelper.showListeningNotification(this)
         AppLogger.info("App", "Application started")

@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.notifledger.app.R
+import org.notifledger.app.model.DisplayMode
 import org.notifledger.app.ui.components.EditableSettingRow
 import org.notifledger.app.ui.components.NotifLedgerTopAppBar
 import org.notifledger.app.ui.util.rememberListenerEnabled
@@ -57,6 +59,7 @@ fun SettingsScreen(
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val filterLimit by viewModel.filterLimit.collectAsState()
     val journalPath by viewModel.journalPath.collectAsState()
+    val displayMode by viewModel.displayMode.collectAsState()
     val isListening = rememberListenerEnabled(context)
 
     val pickFileLauncher = rememberLauncherForActivityResult(
@@ -83,12 +86,14 @@ fun SettingsScreen(
             defaultCurrency = defaultCurrency,
             filterLimit = filterLimit,
             journalPath = journalPath,
+            displayMode = DisplayMode.fromValue(displayMode),
             isListening = isListening,
             onSelectJournalFile = { pickFileLauncher.launch(arrayOf("*/*")) },
             onNavigateToSources = onNavigateToSources,
             onSaveDefaultAccount = viewModel::setDefaultAccount,
             onSaveDefaultCurrency = viewModel::setDefaultCurrency,
             onSaveFilterLimit = viewModel::setFilterLimit,
+            onDisplayModeChange = viewModel::setDisplayMode,
             modifier = Modifier.padding(padding),
         )
     }
@@ -100,12 +105,14 @@ private fun SettingsContent(
     defaultCurrency: String,
     filterLimit: Int,
     journalPath: String,
+    displayMode: DisplayMode,
     isListening: Boolean,
     onSelectJournalFile: () -> Unit,
     onNavigateToSources: () -> Unit,
     onSaveDefaultAccount: (String) -> Unit,
     onSaveDefaultCurrency: (String) -> Unit,
     onSaveFilterLimit: (Int) -> Unit,
+    onDisplayModeChange: (DisplayMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -120,6 +127,13 @@ private fun SettingsContent(
         JournalFileCard(
             journalPath = journalPath,
             onSelectFile = onSelectJournalFile,
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        DisplayModeSettingRow(
+            mode = displayMode,
+            onModeChange = onDisplayModeChange,
         )
 
         Spacer(Modifier.height(12.dp))
@@ -204,6 +218,42 @@ private fun SourcesCard(onClick: () -> Unit) {
                 )
             }
             Icon(Lucide.ChevronRight, contentDescription = null)
+        }
+    }
+}
+
+/** Journal list or sortable table — one switch, because there are only two views. */
+@Composable
+private fun DisplayModeSettingRow(mode: DisplayMode, onModeChange: (DisplayMode) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.display_mode), style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        if (mode == DisplayMode.Table) R.string.display_mode_table_hint
+                        else R.string.display_mode_journal_hint
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = mode == DisplayMode.Table,
+                onCheckedChange = { isTable ->
+                    onModeChange(if (isTable) DisplayMode.Table else DisplayMode.Journal)
+                },
+            )
         }
     }
 }

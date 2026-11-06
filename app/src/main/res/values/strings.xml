@@ -56,6 +56,12 @@
     <string name="sort_oldest_first">Oldest first</string>
     <string name="sort_highest_amount">Highest amount first</string>
     <string name="sort_lowest_amount">Lowest amount first</string>
+    <string name="sort_payee_ascending">Payee A–Z</string>
+    <string name="sort_payee_descending">Payee Z–A</string>
+    <string name="sort_account_ascending">Account A–Z</string>
+    <string name="sort_account_descending">Account Z–A</string>
+    <string name="sort_currency_ascending">Currency A–Z</string>
+    <string name="sort_currency_descending">Currency Z–A</string>
     <string name="page_per_page">%1$d per page</string>
     <string name="page_size">Page size</string>
     <string name="page_of">Page %1$d of %2$d</string>
@@ -80,6 +86,13 @@
     <string name="filter_state_off">Off</string>
     <string name="no_matching_transactions">No transactions match the active filters</string>
 
+    <!-- Transaction table -->
+    <string name="column_date">Date</string>
+    <string name="column_payee">Payee</string>
+    <string name="column_account">Account</string>
+    <string name="column_amount">Amount</string>
+    <string name="column_currency">Currency</string>
+
     <!-- Bulk edit -->
     <string name="bulk_change_title">Change selected</string>
     <string name="bulk_selected_count">%1$d selected</string>
@@ -95,6 +108,9 @@
     <!-- Settings -->
     <string name="default_account">Default payment account</string>
     <string name="default_currency">Default currency</string>
+    <string name="display_mode">Transactions view</string>
+    <string name="display_mode_journal_hint">Journal: one card per transaction, with all postings.</string>
+    <string name="display_mode_table_hint">Table: one row per transaction, tap a column header to sort.</string>
     <string name="journal_file">Journal file</string>
     <string name="select_journal_file">Select journal file</string>
     <string name="listener_status_on">Listening for notifications</string>

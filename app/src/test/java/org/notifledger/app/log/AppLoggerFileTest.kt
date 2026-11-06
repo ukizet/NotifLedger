@@ -28,15 +28,12 @@ class AppLoggerFileTest {
         val file = File(dir, "notifledger.log")
         AppLogger.initLogFile(file)
 
-        AppLogger.info("T", "hello")
-        AppLogger.warn("T", "oops")
+        AppLogger.info("TagCheck", "hello")
+        AppLogger.warn("TagCheck", "oops")
 
         val text = file.readText()
-        assertTrue(text.contains("hello"))
-        assertTrue(text.contains("oops"))
-        assertTrue(text.contains("INFO"))
-        assertTrue(text.contains("WARN"))
-        assertTrue(text.contains("T"))
+        assertTrue(text.contains("INFO TagCheck hello"))
+        assertTrue(text.contains("WARN TagCheck oops"))
     }
 
     @Test

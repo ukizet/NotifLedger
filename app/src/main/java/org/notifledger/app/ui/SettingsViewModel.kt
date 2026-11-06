@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.notifledger.app.NotifLedgerApp
+import org.notifledger.app.model.DisplayMode
 import org.notifledger.app.settings.SettingsManager
 
 /** State for the settings screen. */
@@ -30,6 +31,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsManager.DEFAULT_FILTER_ROW_LIMIT
     )
 
+    val displayMode = app.settings.displayMode.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsManager.DEFAULT_DISPLAY_MODE
+    )
+
     fun setJournalPath(path: String) {
         app.writeScope.launch { app.settings.setJournalPath(path) }
     }
@@ -44,5 +49,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setFilterLimit(limit: Int) {
         app.writeScope.launch { app.settings.setFilterRowLimit(limit) }
+    }
+
+    fun setDisplayMode(mode: DisplayMode) {
+        app.writeScope.launch { app.settings.setDisplayMode(DisplayMode.toValue(mode)) }
     }
 }
