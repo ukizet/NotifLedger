@@ -145,9 +145,9 @@ class NotificationHandlerTest {
             text = "Varekjøp 549,00 kr hos MENY",
             defaultAccount = "assets:bank:checking",
         )
-        assertNotNull(result)
-        assertEquals("Varekjøp", result!!.payee)
+        assertEquals("Varekjøp", result.payee)
         assertEquals("549.00", result.postings[0].amount)
+        assertEquals("", result.postings[1].amount)
         assertEquals(Source.Notification, result.source)
     }
 
@@ -158,11 +158,11 @@ class NotificationHandlerTest {
             text = "Ingen pengeinformasjon",
             defaultAccount = "assets:bank:checking",
         )
-        assertNotNull(result)
-        assertEquals("Hei", result!!.payee)
+        assertEquals("Hei", result.payee)
         assertEquals("expenses:unknown", result.postings[0].account)
         assertEquals("", result.postings[0].amount)
         assertEquals("assets:bank:checking", result.postings[1].account)
+        assertEquals("", result.postings[1].amount)
         assertEquals(Source.Notification, result.source)
     }
 
@@ -174,9 +174,9 @@ class NotificationHandlerTest {
             defaultAccount = "assets:bank:checking",
         )
         // No number in empty text + title "SMS" = no number found → best-effort
-        assertNotNull(result)
-        assertEquals("SMS", result!!.payee)
+        assertEquals("SMS", result.payee)
         assertEquals("", result.postings[0].amount)
+        assertEquals("", result.postings[1].amount)
         assertEquals(Source.Notification, result.source)
     }
 
@@ -188,8 +188,7 @@ class NotificationHandlerTest {
             defaultAccount = "assets:bank:checking",
             currency = "EUR",
         )
-        assertNotNull(result)
-        assertEquals("EUR", result!!.postings[0].currency)
+        assertEquals("EUR", result.postings[0].currency)
         assertEquals("EUR", result.postings[1].currency)
     }
 
@@ -201,8 +200,7 @@ class NotificationHandlerTest {
             defaultAccount = "assets:bank:checking",
             currency = "EUR",
         )
-        assertNotNull(result)
-        assertEquals("EUR", result!!.postings[0].currency)
+        assertEquals("EUR", result.postings[0].currency)
         assertEquals("EUR", result.postings[1].currency)
     }
 
@@ -319,8 +317,7 @@ class NotificationHandlerTest {
             defaultAccount = "assets:bank:checking",
             rules = rules,
         )
-        assertNotNull(result)
-        assertEquals("expenses:meny", result!!.postings[0].account)
+        assertEquals("expenses:meny", result.postings[0].account)
         assertEquals("549.00", result.postings[0].amount)
     }
 
@@ -333,8 +330,7 @@ class NotificationHandlerTest {
             defaultAccount = "assets:bank:checking",
             rules = rules,
         )
-        assertNotNull(result)
-        assertEquals("expenses:greeting", result!!.postings[0].account)
+        assertEquals("expenses:greeting", result.postings[0].account)
         assertEquals("", result.postings[0].amount)
     }
 

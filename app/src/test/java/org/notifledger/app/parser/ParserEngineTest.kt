@@ -318,16 +318,27 @@ class ParserEngineTest {
     }
 
     @Test
-    fun `amount with dot as thousand separator is not parsable`() {
+    fun `amount with dot as thousand separator and comma decimals`() {
         val result = ParserEngine.parse(
             title = "Overføring",
             text = "Overført 1.234,56 kr",
             expenseAccount = "expenses:unknown",
             moneyAccount = "assets:bank:checking",
         )
-        // Regex finds "1.234,56" -> replace comma -> "1.234.56"
-        // toDoubleOrNull returns null for multiple dots
-        assertNull(result)
+        assertNotNull(result)
+        assertEquals("1234.56", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `amount with comma as thousand separator and dot decimals`() {
+        val result = ParserEngine.parse(
+            title = "Transfer",
+            text = "Sent 1,234.56 USD abroad",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("1234.56", result!!.postings[0].amount)
     }
 
     @Test
@@ -620,5 +631,127 @@ class ParserEngineTest {
         )
         assertNotNull(result)
         assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    // ── Numbers sharing one regex run must not be concatenated ──────────────
+
+    @Test
+    fun `card mask without asterisk does not merge with the amount`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Kjøp med kort 1234 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `reference number before the amount does not merge with it`() {
+        val result = ParserEngine.parse(
+            title = "Overføring",
+            text = "Ordre 12345 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `plain number before the amount does not merge with it`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp",
+            text = "Kjøp hos Rema 1000 184,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("184.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `multi-group mask with a decimal mark is not concatenated`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Kjøp med kort *1234 5678 9012,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `space grouped thousands stay one number`() {
+        val result = ParserEngine.parse(
+            title = "Husleie",
+            text = "Betalt 12 500,00 kr i husleie",
+            expenseAccount = "expenses:housing",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("12500.00", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `date before a space grouped amount keeps the whole amount`() {
+        val result = ParserEngine.parse(
+            title = "Kortkjøp",
+            text = "Overført 15.10.2026 1 234,50 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("1234.50", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `date before a space grouped amount with no currency marker`() {
+        val result = ParserEngine.parse(
+            title = "Kortkjøp",
+            text = "Overført 15.10.2026 12 500,00",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("12500.00", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `mask before a space grouped amount keeps the whole amount`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Betalt med kort *1234 12 500,00 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("12500.00", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `mask before a dot grouped amount keeps the whole amount`() {
+        val result = ParserEngine.parse(
+            title = "Kjøp med kort",
+            text = "Betalt med kort *1234 1.234,56 kr",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("1234.56", result!!.postings[0].amount)
+    }
+
+    @Test
+    fun `body with mixed separators falls back to the title amount`() {
+        val result = ParserEngine.parse(
+            title = "Vipps 250,00",
+            text = "Betalt 12.3,4",
+            expenseAccount = "expenses:unknown",
+            moneyAccount = "assets:bank:checking",
+        )
+        assertNotNull(result)
+        assertEquals("Vipps 250,00", result!!.payee)
+        assertEquals("250.00", result.postings[0].amount)
     }
 }

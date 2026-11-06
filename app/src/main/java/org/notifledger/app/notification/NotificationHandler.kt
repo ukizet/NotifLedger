@@ -66,13 +66,17 @@ object NotificationHandler {
         )
     }
 
+    /**
+     * Never null: a parse that finds no number still posts a best-effort entry.
+     * The non-null return type encodes the "never gated, never dropped" invariant.
+     */
     fun processNotification(
         title: String,
         text: String,
         defaultAccount: String,
         currency: String = "",
         rules: List<CategorizationRule> = emptyList(),
-    ): Transaction? {
+    ): Transaction {
         return parseTransaction(title, text, defaultAccount, currency, rules)
             ?: createBestEffortTransaction(title, defaultAccount, currency, rules)
     }

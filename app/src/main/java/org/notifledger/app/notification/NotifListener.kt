@@ -68,9 +68,11 @@ class NotifListener : NotificationListenerService() {
             NotificationDedup.notificationId(sbn.postTime, sbn.key),
         ) ?: return
 
+        // android.title/android.text are CharSequence extras; getString() returns
+        // null for a SpannableString and the notification would be dropped.
         val extras = sbn.notification.extras
-        val title = extras.getString(EXTRA_TITLE) ?: return
-        val text = extras.getString(EXTRA_TEXT) ?: ""
+        val title = extras.getCharSequence(EXTRA_TITLE)?.toString() ?: return
+        val text = extras.getCharSequence(EXTRA_TEXT)?.toString() ?: ""
 
         val defaultAccount = app.getDefaultAccount()
         val defaultCurrency = app.getDefaultCurrency()
@@ -82,7 +84,7 @@ class NotifListener : NotificationListenerService() {
             defaultAccount = defaultAccount,
             currency = defaultCurrency,
             rules = rules,
-        ) ?: return
+        )
 
         // Title (payee) and amount are retained in the journal; the raw body text is not,
         // per design §4.1, so we never log the body.
