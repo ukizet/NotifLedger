@@ -60,6 +60,21 @@ ownership** to prevent edit conflicts:
 
 ## Build & environment
 
+**Use devenv, or do nothing. No workarounds.**
+
+- Run every build, test, and device command through the dev shell:
+  `devenv shell -- <command>` (or enter it, then run the command). Nothing
+  else counts as a build. If devenv will not start, stop and say so — do not
+  find another way to run Gradle.
+- **Never go into the Nix store.** Never read, invoke, or point anything at
+  `/nix/store/...` — no `JAVA_HOME`, `PATH`, `sdk.dir`, aapt2, or tool path
+  taken from there and handed to a command by hand. The shell sets up everything
+  a build needs; if something is missing or wrong, fix it in `devenv.nix` /
+  `devenv.yaml` (ask the user first) or report it.
+- **Don't export or hand-set environment variables** to compensate for a broken
+  or missing shell setup — no `GRADLE_USER_HOME`, `GRADLE_OPTS`, `ANDROID_*`,
+  ad-hoc `PATH` prefixes, or wrappers around tools. Ask the user before adding
+  an export to `devenv.nix`.
 - Single-module Android app (`:app`), Kotlin + Jetpack Compose. JDK 17, AGP
   8.1.4, Kotlin 1.9.22, Compose compiler 1.5.8, compileSdk/targetSdk 34,
   minSdk 26.
