@@ -270,6 +270,27 @@ source of truth.
 - Max 1000 lines per file. No file should require scrolling to understand its
   purpose.
 
+**Don't repeat yourself**
+
+- Duplication is the default thing to remove in this repo. **The same line
+  appearing two or three times in a file, unchanged, means something is wrong** —
+  pull it into one named function or value and call it from each site.
+- Lines that repeat with only a literal changed (`A -> f(x)` / `B -> f(y)`) are
+  duplication too: write one function that takes the changed part. If the
+  `when` arms of a new enum entry would be copy-paste of an existing arm, the
+  data belongs in the enum instead of in another branch.
+- A repeated *shape* with genuinely different logic is not duplication —
+  exhaustive `when` branches, one row per column/field, and distinct error
+  messages are fine when the bodies differ. Don't force them into an
+  abstraction.
+- A helper earns its name when the same logic would otherwise live in 2+ places
+  at once, or the repetition is inside one file — extracting a duplicate is not
+  the "abstraction layer" the next section warns about. Shared helpers used by
+  two files have one owner (see Multi-agent coordination).
+- Prefer fewest copies over fewest lines: a little repeated boilerplate that
+  stays readable beats a clever parameterized helper, but "it was quicker to
+  paste" is never the reason.
+
 **Simple beats clever**
 
 - Write the dumbest version that works; optimize measured, not guessed.
