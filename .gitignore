@@ -1,6 +1,9 @@
 # Ignore Gradle project-specific cache directory
 .gradle
 
+# Sandbox-local Gradle user home (read-only ~/.gradle otherwise)
+.gradle-user-home
+
 # Ignore Gradle build output directory
 build
 

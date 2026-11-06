@@ -40,6 +40,13 @@
     export NIXPKGS_ALLOW_UNFREE=1
     export PATH="$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/build-tools/34.0.0:$PATH"
 
+    # AGP downloads aapt2 from Maven; that build is a generic-Linux binary and
+    # NixOS refuses to start it (no nix-ld). The SDK build-tools copy is patched
+    # by nixpkgs and runs, so point AGP at it.
+    export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=$ANDROID_HOME/build-tools/34.0.0/aapt2"
 
+    # Keep Gradle's home (wrapper, daemon, caches) inside the repo instead of
+    # ~/.gradle. Gitignored in .gitignore.
+    export GRADLE_USER_HOME="$PWD/.gradle-user-home"
   '';
 }

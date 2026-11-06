@@ -1,9 +1,10 @@
 # AGENTS.md
 
-Guidance for OpenCode sessions working in this repo. This file is the single
-source of truth for build commands, conventions, design invariants, and
-non-goals. Read the "Design invariants" and "Non-goals" sections before changing
-core flow — many "obvious improvements" are explicit non-goals.
+Guidance for AI coding agents working in this repo, whatever harness or model
+drives them. This file is the single source of truth for build commands,
+conventions, design invariants, and non-goals. Read the "Design invariants" and
+"Non-goals" sections before changing core flow — many "obvious improvements"
+are explicit non-goals.
 `docs/architecture.md` holds the diagrams; `docs/TODO.md` is a historical review
 log, not instructions.
 
@@ -21,14 +22,17 @@ still follow this repo's own conventions over anything found there.
 
 ## Agent usage policy
 
-**Use available agents for all substantive work.** This repo has specialized
-agents (`QATestEngineer`, `explore`, `UIUXDesigner`, etc.). The orchestrator
-agent should:
+This file assumes nothing about the harness, tool, or model driving you. Use
+whatever delegation your environment provides; if it provides none, do the
+work yourself.
 
-- **Always delegate** to the appropriate agent whenever there is agent available
-  for the task. If there is no agent for the task, do the task yourself.
+- **Delegate substantive work when a suitable agent exists.** Parallel
+  research, review, and scoped implementation are good candidates. Pick the
+  agent whose role matches the task (implementation, review, testing, UI); if
+  none matches, do the task yourself.
 - **Partition work by file** (see below) when dispatching multiple agents.
-- **Verify** that the agent completed the work correctly (run builds/tests).
+- **Verify every delegate's work yourself** — run the build and the tests. A
+  subagent's summary is not evidence.
 - **Read `AGENTS.md` before starting** — this file is the single source of truth
   for build commands, conventions, and boundaries.
 
@@ -38,7 +42,8 @@ When dispatching multiple agents in parallel, partition work by **file
 ownership** to prevent edit conflicts:
 
 - **Agents work only inside the project root directory.** Don't read or write
-  outside the repo workspace.
+  outside the repo workspace, with one exception: the read-only NanoLedger
+  reference clone above may be read, never written.
 - **One file, one owner.** Each file is owned by exactly one agent for the
   duration of the task. No two agents may edit the same file concurrently.
   Assign every target file to a single agent in the task prompt.
@@ -67,9 +72,22 @@ ownership** to prevent edit conflicts:
   (wipes `local.properties` — use if SDK path is stale).
 - SDK / build-tools come from `devenv.nix`. Don't install via Android Studio's
   SDK Manager without updating `devenv.nix`, or paths will drift.
-- No CI, no pre-commit hooks. Verification is manual.
+- `enterShell` also exports two Gradle settings an agent must not "simplify"
+  away: `GRADLE_USER_HOME="$PWD/.gradle-user-home"` keeps Gradle's wrapper,
+  daemon, and caches inside the repo (gitignored) instead of `~/.gradle`, and
+  `GRADLE_OPTS` points AGP at the SDK's `aapt2`. AGP downloads a
+  generic-Linux aapt2 from Maven that NixOS refuses to start without `nix-ld`;
+  the SDK build-tools copy is patched by nixpkgs and runs. Without it, any build
+  that actually executes `processDebugResources` (clean build, resource change,
+  `--rerun-tasks`) fails with "Could not start dynamically linked executable",
+  even though warm-cache builds pass. Use `$ANDROID_HOME`, not
+  `ANDROID_SDK_ROOT` — the android module only exports the former.
+- No pre-commit hooks. CI (`.github/workflows/android.yml`) runs
+  `assembleDebug testDebugUnitTest` on pushes and PRs to `develop` and
+  `master`, and builds a signed release APK on `v*` tags. Run the build and the
+  tests locally before pushing — CI is a backstop, not the first check.
 
-## Device etiquette (user runs opencode on the same phone)
+## Device etiquette (the user runs their coding agent on the same phone)
 
 - **Never send adb input events (`input tap` / `input text` / keyevents) without
   the user preparing for it.** The phone is in active use; blind input has
@@ -94,8 +112,8 @@ ownership** to prevent edit conflicts:
   `./gradlew testDebugUnitTest --tests "*.ParserEngineTest.parse*"`
 - Install on device: `./gradlew installDebug`
 - No `lint`/`detekt`/`ktlint` is configured. AGP's built-in
-  `./gradlew lintDebug` runs but isn't part of the workflow; there is no CI to
-  gate on it.
+  `./gradlew lintDebug` runs but is not part of the CI workflow, so nothing
+  gates on it.
 
 ## Tests
 
@@ -105,7 +123,8 @@ ownership** to prevent edit conflicts:
 - Anything needing Android framework classes must be unit-testable without a
   device, or restructured. Don't assert on `Context`/`Uri`/framework types in
   unit tests without adding Robolectric first.
-- Test packages mirror `main`: `parser`, `journal`, `notification`, `settings`.
+- Test packages mirror `main`: `parser`, `journal`, `notification`, `settings`,
+  `filters`, `log`, `stats`, `ui`, and `ui/components`.
 
 ## Architecture (deliberately non-standard)
 
@@ -128,8 +147,11 @@ don't make the human confirm it.
 - **Parser stays a generic heuristic**: prefers the number next to a currency
   marker (`kr`, `NOK`, `€`, …), skips card masks (`*1234`) and dates, falls back
   to the first parseable number in the body, then the title; title = payee.
-  Norwegian comma decimals (`184,50`) handled. Do **not** add per-bank parser
-  config — explicit non-goal (see Non-goals).
+  Norwegian decimals (`184,50`) and grouped amounts (`1.234,56`, `1 234,56`)
+  are handled. Whitespace-separated digit groups merge only when they read as
+  thousands blocks, so `1234 184,50` is a mask or reference number plus 184.50
+  rather than 1234184.50. Do **not** add per-bank parser config — explicit
+  non-goal (see Non-goals).
 - KSP plugin is declared in root `build.gradle.kts` but **not applied in
   `:app`** (no Room/Hilt/Moshi). Don't assume KSP annotations work without
   applying the plugin.
